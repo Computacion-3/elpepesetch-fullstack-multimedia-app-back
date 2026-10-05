@@ -24,8 +24,9 @@ export class UserList {
     @Column({ type: 'enum', enum: ListVisibility, default: ListVisibility.PRIVATE })
     visibility: ListVisibility;
 
-    // Temporary UUID array until MediaItem and the list_items join table are implemented.
-    // TODO: replace this column with @ManyToMany(() => MediaItem) items and @JoinTable({ name: 'list_items' }).
+    // Temporary storage while MediaItem is not available.
+    // TODO: replace itemIds with @ManyToMany(() => MediaItem) items and
+    // @JoinTable({ name: 'list_items' }) when the media entity is implemented.
     @Column({ type: 'uuid', array: true, default: () => 'ARRAY[]::uuid[]' })
     itemIds: string[];
 

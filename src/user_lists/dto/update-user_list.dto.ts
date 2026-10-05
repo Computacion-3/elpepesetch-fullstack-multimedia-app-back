@@ -1,4 +1,18 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateUserListDto } from './create-user_list.dto.js';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ListVisibility } from '../entities/user_list.entity.js';
 
-export class UpdateUserListDto extends PartialType(CreateUserListDto) {}
+export class UpdateUserListDto {
+    @IsOptional()
+    @IsString()
+    @MaxLength(80)
+    name?: string;
+
+    @IsOptional()
+    @IsString()
+    @MaxLength(255)
+    description?: string | null;
+
+    @IsOptional()
+    @IsEnum(ListVisibility)
+    visibility?: ListVisibility;
+}

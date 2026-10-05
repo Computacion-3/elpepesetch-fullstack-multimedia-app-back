@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { UserListsService } from './user_lists.service.js';
+import { AddListItemDto } from './dto/add-list-item.dto.js';
 import { CreateUserListDto } from './dto/create-user_list.dto.js';
+import { ListQueryDto } from './dto/list-query.dto.js';
 import { UpdateUserListDto } from './dto/update-user_list.dto.js';
 
 @Controller('lists')
@@ -18,8 +20,8 @@ export class UserListsController {
     }
 
     @Get('public')
-    findPublic(@Headers('x-user-id') userId: string, @Query('page') page?: string, @Query('limit') limit?: string) {
-        return this.userListsService.findPublic(userId, Number(page) || 1, Number(limit) || 10);
+    findPublic(@Headers('x-user-id') userId: string, @Query() query: ListQueryDto) {
+        return this.userListsService.findPublic(userId, query);
     }
 
     @Get(':id')
@@ -38,8 +40,8 @@ export class UserListsController {
     }
 
     @Post(':id/items')
-    addItem(@Headers('x-user-id') userId: string, @Param('id') id: string, @Body('mediaItemId') mediaItemId: string) {
-        return this.userListsService.addItem(userId, id, mediaItemId);
+    addItem(@Headers('x-user-id') userId: string, @Param('id') id: string, @Body() dto: AddListItemDto) {
+        return this.userListsService.addItem(userId, id, dto);
     }
 
     @Delete(':id/items/:mediaItemId')
