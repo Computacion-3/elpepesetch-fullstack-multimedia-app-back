@@ -1,4 +1,12 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+    Check,
+    Column,
+    CreateDateColumn,
+    Entity,
+    Index,
+    PrimaryGeneratedColumn,
+    UpdateDateColumn,
+} from 'typeorm';
 
 export enum LibraryStatus {
     PENDING = 'PENDING',
@@ -9,6 +17,8 @@ export enum LibraryStatus {
 
 @Entity('library_entries')
 @Index(['userId', 'mediaItemId'], { unique: true })
+@Check(`"progress" >= 0`)
+@Check(`"rating" IS NULL OR ("rating" >= 1 AND "rating" <= 10)`)
 export class LibraryEntry {
     @PrimaryGeneratedColumn('uuid')
     id: string;

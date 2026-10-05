@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Headers, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { LibraryEntriesService } from './library_entries.service.js';
 import { CreateLibraryEntryDto } from './dto/create-library_entry.dto.js';
+import { LibraryQueryDto } from './dto/library-query.dto.js';
 import { UpdateLibraryEntryDto } from './dto/update-library_entry.dto.js';
-import { LibraryStatus } from './entities/library_entry.entity.js';
 
 @Controller('library')
 export class LibraryEntriesController {
@@ -16,17 +16,9 @@ export class LibraryEntriesController {
     @Get()
     findAll(
         @Headers('x-user-id') userId: string,
-        @Query('status') status?: LibraryStatus,
-        @Query('isFavorite') isFavorite?: string,
-        @Query('page') page?: string,
-        @Query('limit') limit?: string,
+        @Query() query: LibraryQueryDto,
     ) {
-        return this.libraryEntriesService.findAll(userId, {
-            status,
-            isFavorite: isFavorite === undefined ? undefined : isFavorite === 'true',
-            page: Number(page) || 1,
-            limit: Number(limit) || 10,
-        });
+        return this.libraryEntriesService.findAll(userId, query);
     }
 
     @Get(':id')

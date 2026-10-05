@@ -6,8 +6,8 @@ import { LibraryEntry } from './entities/library_entry.entity.js';
 import { ActivityLogsModule } from '../activity_logs/activity_logs.module.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LibraryEntry]), ActivityLogsModule],
-  controllers: [LibraryEntriesController],
-  providers: [LibraryEntriesService],
+    imports: [TypeOrmModule.forFeature([LibraryEntry]), ActivityLogsModule],
+    providers: [LibraryEntriesService],
+    controllers: [LibraryEntriesController],
 })
 export class LibraryEntriesModule {}
