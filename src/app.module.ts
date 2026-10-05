@@ -4,6 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { LibraryEntriesModule } from './library_entries/library_entries.module.js';
+import { UserListsModule } from './user_lists/user_lists.module.js';
+import { ActivityLogsModule } from './activity_logs/activity_logs.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -33,6 +36,9 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
                 synchronize: true, // Sincroniza esquemas automáticamente en desarrollo
             }),
         }),
+        LibraryEntriesModule,
+        UserListsModule,
+        ActivityLogsModule,
     ],
     controllers: [AppController],
     providers: [AppService],
