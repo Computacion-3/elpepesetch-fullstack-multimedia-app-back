@@ -11,5 +11,5 @@ export class CreateActivityLogDto {
 
     @IsOptional()
     @IsObject()
-    metadata?: Record<string, unknown>;
+    metadata?: Record<string, unknown> | null;
 }

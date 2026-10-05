@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum ActivityAction {
     ENTRY_ADDED = 'ENTRY_ADDED',
@@ -11,6 +11,7 @@ export enum ActivityAction {
 }
 
 @Entity('activity_logs')
+@Index(['userId', 'createdAt'])
 export class ActivityLog {
     @PrimaryGeneratedColumn('uuid')
     id: string;
