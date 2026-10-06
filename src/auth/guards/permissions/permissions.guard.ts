@@ -1,41 +1,39 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { Observable } from 'rxjs';
 import { Reflector } from '@nestjs/core';
+import type { Request } from 'express';
 
 import { PERMISSIONS_KEY } from '../../decorators/permissions.decorator.js';
-import { User } from '../../entities/user.entity.js';
-import {AppLogger} from '../../../common/logger/logger.service.js';
+import { AuthenticatedUser } from '../../interfaces/authenticated-user.interface.js';
+import { AppLogger } from '../../../common/logger/logger.service.js';
 
-interface AuthenticatedRequest extends Request {
-    user?: User;
-}
-
+/** Guard global (se ejecuta después de JwtAuthGuard): valida que el usuario tenga todos los permisos de @Permissions(). */
 @Injectable()
 export class PermissionsGuard implements CanActivate {
+    constructor(
+        private readonly reflector: Reflector,
+        private readonly logger: AppLogger,
+    ) {}
 
-    constructor(private readonly reflector: Reflector, private readonly logger: AppLogger) {}
-    canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
-        // 1. Extraemos los permisos requeridos del método manejador
-        this.logger.debug('Verificando permisos para la solicitud entrante');
-        const requiredPermissions = this.reflector.get<string[]>(PERMISSIONS_KEY, context.getHandler());
+    canActivate(context: ExecutionContext): boolean {
+        const requiredPermissions = this.reflector.getAllAndOverride<string[] | undefined>(PERMISSIONS_KEY, [
+            context.getHandler(),
+            context.getClass(),
+        ]);
 
         if (!requiredPermissions || requiredPermissions.length === 0) {
             return true;
         }
 
-        const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-        const user = request.user;
-
+        const { user } = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
         if (!user) {
             throw new UnauthorizedException('Usuario no autenticado en la solicitud');
         }
 
-        const userPermissions = user.role?.rolePermissions?.map((rp) => rp.permission.name) ?? [];
         const hasAllRequiredPermissions = requiredPermissions.every((permission) =>
-            userPermissions.includes(permission),
+            user.permissions.includes(permission),
         );
-
         if (!hasAllRequiredPermissions) {
+            this.logger.warn(`Acceso denegado al usuario ${user.id}: requiere [${requiredPermissions.join(', ')}]`);
             throw new ForbiddenException('Acceso denegado: No cuentas con los permisos suficientes para esta acción');
         }
         return true;

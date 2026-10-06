@@ -44,6 +44,15 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Seguridad y documentación de la API
+
+- **Swagger / OpenAPI:** con la app en marcha, abrir `http://localhost:<PORT>/api/docs` (JSON en `/api/docs-json`). Para probar rutas protegidas: `POST /auth/login`, copiar `accessToken` y pulsar **Authorize**.
+- **Autenticación:** JWT con `jti` único. Todas las rutas exigen `Authorization: Bearer <token>` salvo `POST /auth/register`, `POST /auth/login` y Swagger (decorador `@Public()`). `POST /auth/logout` revoca el token (tabla `revoked_tokens`).
+- **Autorización:** permisos por rol (`roles` → `role_permissions` → `permissions`) con `@Permissions('users:manage')`; los guards globales `JwtAuthGuard` y `PermissionsGuard` los aplican (401 sin/ con token inválido, 403 sin permiso).
+- **Datos iniciales:** con las tablas ya creadas (arrancar la app una vez), `psql ... -f db/seed.sql` crea los roles, permisos y usuarios de prueba (`admin@example.com / Admin1234`, `moderator@example.com / Moderator1234`, `user@example.com / User12345`). Cámbialos antes de desplegar.
+- **Variables obligatorias:** `JWT_SECRET` (la app no arranca sin ella), `JWT_EXPIRES_IN`, `SALT_QTY` y las `POSTGRES_*` (ver `.env.example`).
+- **Tests e2e:** necesitan PostgreSQL y vacían las tablas, por eso solo corren si `POSTGRES_DB` contiene "test".
+
 ## Run tests
 
 ```bash

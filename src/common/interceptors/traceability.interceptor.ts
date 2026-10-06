@@ -5,8 +5,8 @@ import { Observable } from 'rxjs';
 import { finalize, tap } from 'rxjs/operators';
 import { Response } from 'express';
 
-import { AppLogger } from '../logger/logger.service';
-import { TracedRequest } from '../interfaces/traced-request.interface';
+import { AppLogger } from '../logger/logger.service.js';
+import { TracedRequest } from '../interfaces/traced-request.interface.js';
 
 @Injectable()
 export class TraceabilityInterceptor implements NestInterceptor {
