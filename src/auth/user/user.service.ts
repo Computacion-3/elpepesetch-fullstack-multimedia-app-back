@@ -1,0 +1,98 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+
+import { RoleNotFoundException, UserNotFoundException } from '../../common/exceptions/index.js';
+import { User } from '../entities/user.entity.js';
+import { RoleService } from '../role/role.service.js';
+
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { UpdateUserDto } from './dto/update-user.dto.js';
+
+@Injectable()
+export class UserService {
+    constructor(
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
+        private readonly roleService: RoleService,
+        private readonly configService: ConfigService,
+    ) {}
+
+    async create(createUserDto: CreateUserDto): Promise<User> {
+        const { roleId, ...userData } = createUserDto;
+        const role = await this.roleService.findOne(roleId);
+        if (!role) {
+            throw new RoleNotFoundException(roleId);
+        }
+
+        const saltRounds = parseInt(this.configService.get<string>('SALT_ROUNDS') ?? '10', 10);
+
+        const passwordHashed = await bcrypt.hash(userData.passwordHash, saltRounds);
+
+        const user = this.userRepository.create({
+            ...userData,
+            passwordHash: passwordHashed,
+            role,
+        });
+
+        const savedUser = await this.userRepository.save(user);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { passwordHash: _, ...userWithoutPassword } = savedUser;
+        return userWithoutPassword as User;
+    }
+
+    async findAll(): Promise<User[]> {
+        return await this.userRepository.find({
+            relations: { role: true },
+        });
+    }
+
+    async findOne(id: number, relations: boolean = false): Promise<User> {
+        const user = await this.userRepository.findOne({
+            where: { id },
+            relations: { role: relations ? { rolePermissions: { permission: true } } : false },
+        });
+        if (!user) {
+            throw new UserNotFoundException(id);
+        }
+        return user;
+    }
+
+    async findByEmail(email: string): Promise<User | null> {
+        const user = await this.userRepository.findOne({
+            where: { email },
+            relations: {
+                role: {
+                    rolePermissions: {
+                        permission: true,
+                    },
+                },
+            },
+        });
+        return user || null;
+    }
+
+    async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+        const user = await this.findOne(id);
+        const { roleId, ...userData } = updateUserDto;
+
+        if (roleId !== undefined) {
+            const role = await this.roleService.findOne(roleId);
+            if (!role) {
+                throw new RoleNotFoundException(roleId);
+            }
+            user.role = role;
+        }
+
+        this.userRepository.merge(user, userData);
+        return await this.userRepository.save(user);
+    }
+
+    async remove(id: number): Promise<{ message: string }> {
+        const user = await this.findOne(id);
+        await this.userRepository.remove(user);
+        return { message: `User with id #${id} deleted successfully` };
+    }
+}
