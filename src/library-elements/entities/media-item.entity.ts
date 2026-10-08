@@ -15,9 +15,9 @@ import type { Relation } from 'typeorm';
 import { User } from '../../auth/entities/user.entity.js';
 import { ApprovalStatus, MediaType } from '../enums/library.enums.js';
 import { Genre } from './genre.entity.js';
-import { LibraryEntry } from './library-entry.entity.js';
 import { Review } from './review.entity.js';
-import { UserList } from './user-list.entity.js';
+import { UserList } from './user_list.entity.js';
+import { LibraryEntry } from './library_entry.entity.js';
 
 @Entity('media_items')
 @Unique(['title', 'type', 'releaseYear'])
@@ -50,11 +50,11 @@ export class MediaItem {
         inverseJoinColumn: { name: 'genre_id', referencedColumnName: 'id' },
     })
     genres: Relation<Genre[]>;
-    @OneToMany(() => LibraryEntry, (entry) => entry.mediaItem)
+    @OneToMany(() => LibraryEntry, (entry) => entry.mediaItem) // TODO: replace mediaItemId with @ManyToOne(() => MediaItem) mediaItem when media is implemented.
     libraryEntries: Relation<LibraryEntry[]>;
     @OneToMany(() => Review, (review) => review.mediaItem)
     reviews: Relation<Review[]>;
-    @ManyToMany(() => UserList, (list) => list.items)
+    @ManyToMany(() => UserList, (list) => list.items) // TODO: replace itemIds with @ManyToMany(() => MediaItem) items and @JoinTable({ name: 'list_items' }) when the media entity is implemented.
     lists: Relation<UserList[]>;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' }) createdAt: Date;
