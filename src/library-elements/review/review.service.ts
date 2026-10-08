@@ -1,26 +1,37 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Review } from '../entities/review.entity.js';
 import { CreateReviewDto } from './dto/create-review.dto.js';
 import { UpdateReviewDto } from './dto/update-review.dto.js';
 
 @Injectable()
 export class ReviewService {
+  constructor(@InjectRepository(Review) private readonly repository: Repository<Review>) {}
   create(createReviewDto: CreateReviewDto) {
-    return 'This action adds a new review';
+    const { mediaItemId: _mediaItemId, ...data } = createReviewDto;
+    return this.repository.save(this.repository.create(data));
   }
 
   findAll() {
-    return `This action returns all review`;
+    return this.repository.find({ relations: { mediaItem: true, user: true } });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} review`;
+  async findOne(id: string) {
+    const entity = await this.repository.findOne({ where: { id }, relations: { mediaItem: true, user: true } });
+    if (!entity) throw new NotFoundException(`Review ${id} not found`);
+    return entity;
   }
 
-  update(id: number, updateReviewDto: UpdateReviewDto) {
-    return `This action updates a #${id} review`;
+  async update(id: string, updateReviewDto: UpdateReviewDto) {
+    const entity = await this.findOne(id);
+    const { mediaItemId: _mediaItemId, ...data } = updateReviewDto;
+    return this.repository.save(this.repository.merge(entity, data));
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} review`;
+  async remove(id: string) {
+    const entity = await this.findOne(id);
+    await this.repository.remove(entity);
+    return { message: `Review ${id} deleted successfully` };
   }
 }

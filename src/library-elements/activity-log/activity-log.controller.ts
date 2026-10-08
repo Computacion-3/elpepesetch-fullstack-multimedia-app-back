@@ -19,16 +19,16 @@ export class ActivityLogController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.activityLogService.findOne(+id);
+    return this.activityLogService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateActivityLogDto: UpdateActivityLogDto) {
-    return this.activityLogService.update(+id, updateActivityLogDto);
+    return this.activityLogService.update(id, updateActivityLogDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.activityLogService.remove(+id);
+    return this.activityLogService.remove(id);
   }
 }

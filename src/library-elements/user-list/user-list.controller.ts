@@ -19,16 +19,16 @@ export class UserListController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.userListService.findOne(+id);
+    return this.userListService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserListDto: UpdateUserListDto) {
-    return this.userListService.update(+id, updateUserListDto);
+    return this.userListService.update(id, updateUserListDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.userListService.remove(+id);
+    return this.userListService.remove(id);
   }
 }

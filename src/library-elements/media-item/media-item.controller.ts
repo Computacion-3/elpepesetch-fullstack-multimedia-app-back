@@ -19,16 +19,16 @@ export class MediaItemController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.mediaItemService.findOne(+id);
+    return this.mediaItemService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateMediaItemDto: UpdateMediaItemDto) {
-    return this.mediaItemService.update(+id, updateMediaItemDto);
+    return this.mediaItemService.update(id, updateMediaItemDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.mediaItemService.remove(+id);
+    return this.mediaItemService.remove(id);
   }
 }

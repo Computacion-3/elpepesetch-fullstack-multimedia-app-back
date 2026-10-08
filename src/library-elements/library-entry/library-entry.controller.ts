@@ -19,16 +19,16 @@ export class LibraryEntryController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.libraryEntryService.findOne(+id);
+    return this.libraryEntryService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateLibraryEntryDto: UpdateLibraryEntryDto) {
-    return this.libraryEntryService.update(+id, updateLibraryEntryDto);
+    return this.libraryEntryService.update(id, updateLibraryEntryDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.libraryEntryService.remove(+id);
+    return this.libraryEntryService.remove(id);
   }
 }

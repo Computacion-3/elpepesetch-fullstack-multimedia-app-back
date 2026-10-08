@@ -19,16 +19,16 @@ export class ReviewReportController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.reviewReportService.findOne(+id);
+    return this.reviewReportService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateReviewReportDto: UpdateReviewReportDto) {
-    return this.reviewReportService.update(+id, updateReviewReportDto);
+    return this.reviewReportService.update(id, updateReviewReportDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.reviewReportService.remove(+id);
+    return this.reviewReportService.remove(id);
   }
 }

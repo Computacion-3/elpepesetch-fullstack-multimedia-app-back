@@ -19,16 +19,16 @@ export class RevokedTokenController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.revokedTokenService.findOne(+id);
+    return this.revokedTokenService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateRevokedTokenDto: UpdateRevokedTokenDto) {
-    return this.revokedTokenService.update(+id, updateRevokedTokenDto);
+    return this.revokedTokenService.update(id, updateRevokedTokenDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.revokedTokenService.remove(+id);
+    return this.revokedTokenService.remove(id);
   }
 }
