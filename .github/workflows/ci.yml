@@ -10,6 +10,31 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mydatabase_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydatabase_test
+      SALT_QTY: 4
+      JWT_SECRET: ci-only-secret
+      JWT_EXPIRES_IN: 3600s
+
     steps:
       - name: Clonar repositorio
         uses: actions/checkout@v4
@@ -23,7 +48,10 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Ejecutar pruebas unitarias (Jest)
+      - name: Lint
+        run: npm run lint
+
+      - name: Ejecutar pruebas unitarias
         run: npm run test
 
       - name: Ejecutar pruebas E2E
