@@ -9,6 +9,7 @@ import { ReviewModule } from './review/review.module.js';
 import { ReviewReportModule } from './review-report/review-report.module.js';
 import { ActivityLogsModule } from './activity_logs/activity_logs.module.js';
 import { RevokedTokenModule } from './revoked-token/revoked-token.module.js';
+import { StatsModule } from './stats/stats.module.js';
 
 @Module({
     controllers: [LibraryElementsController],
@@ -22,6 +23,7 @@ import { RevokedTokenModule } from './revoked-token/revoked-token.module.js';
         ReviewReportModule,
         ActivityLogsModule,
         RevokedTokenModule,
+        StatsModule,
     ],
 })
 export class LibraryElementsModule {}
