@@ -3,28 +3,33 @@ import {
     Column,
     CreateDateColumn,
     Entity,
-    Index,
+    JoinColumn,
+    ManyToOne,
     PrimaryGeneratedColumn,
+    Unique,
     UpdateDateColumn,
 } from 'typeorm';
 
 import { LibraryStatus } from '../enums/library.enums.js';
+import type { Relation } from 'typeorm';
+import { User } from '../../auth/entities/user.entity.js';
+import { MediaItem } from './media-item.entity.js';
 
 @Entity('library_entries')
-@Index(['userId', 'mediaItemId'], { unique: true })
+@Unique(['user', 'mediaItem'])
 @Check(`"progress" >= 0`)
 @Check(`"rating" IS NULL OR ("rating" >= 1 AND "rating" <= 10)`)
 export class LibraryEntry {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    // TODO: replace userId with @ManyToOne(() => User) user when users is implemented.
-    @Column({ type: 'uuid', name: 'user_id' })
-    userId: string;
+    @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'user_id' })
+    user: Relation<User>;
 
-    // TODO: replace mediaItemId with @ManyToOne(() => MediaItem) mediaItem when media is implemented.
-    @Column({ type: 'uuid', name: 'media_item_id' })
-    mediaItemId: string;
+    @ManyToOne(() => MediaItem, (mediaItem) => mediaItem.libraryEntries, { nullable: false, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'media_item_id' })
+    mediaItem: Relation<MediaItem>;
 
     @Column({ type: 'enum', enum: LibraryStatus, default: LibraryStatus.PENDING })
     status: LibraryStatus;

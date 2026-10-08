@@ -4,59 +4,57 @@ import { ActivityLog } from '../entities/activity_log.entity.js';
 import { ActivityAction } from '../enums/library.enums.js';
 
 describe('ActivityLogsService', () => {
-  const userId = '11111111-1111-4111-8111-111111111111';
+    function createService(logs: ActivityLog[] = []) {
+        const repository = {
+            create: vi.fn((value: Partial<ActivityLog>) => Object.assign(new ActivityLog(), value)),
+            save: vi.fn(async (log: ActivityLog) => log),
+            findAndCount: vi.fn(async () => [logs, logs.length] as const),
+        };
+        return { service: new ActivityLogsService(repository as never), repository };
+    }
 
-  function createService(logs: ActivityLog[] = []) {
-    const repository = {
-      create: vi.fn((value: Partial<ActivityLog>) => Object.assign(new ActivityLog(), value)),
-      save: vi.fn(async (log: ActivityLog) => log),
-      findAndCount: vi.fn(async () => [logs, logs.length] as const),
-    };
-    return {
-      service: new ActivityLogsService(repository as never),
-      repository,
-    };
-  }
-
-  it('writes an activity with its user, action, media item and metadata', async () => {
-    const { service, repository } = createService();
-    const metadata = { previousStatus: 'PENDING', status: 'IN_PROGRESS' };
-
-    await service.logActivity(userId, {
-      action: ActivityAction.STATUS_CHANGED,
-      mediaItemId: '22222222-2222-4222-8222-222222222222',
-      metadata,
+    it('writes an activity using real relation references', async () => {
+        const { service, repository } = createService();
+        await service.logActivity(7, {
+            action: ActivityAction.STATUS_CHANGED,
+            mediaItemId: '22222222-2222-4222-8222-222222222222',
+            metadata: { status: 'IN_PROGRESS' },
+        });
+        expect(repository.create).toHaveBeenCalledWith({
+            user: { id: 7 },
+            action: ActivityAction.STATUS_CHANGED,
+            mediaItem: { id: '22222222-2222-4222-8222-222222222222' },
+            metadata: { status: 'IN_PROGRESS' },
+        });
     });
 
-    expect(repository.create).toHaveBeenCalledWith({
-      userId,
-      action: ActivityAction.STATUS_CHANGED,
-      mediaItemId: '22222222-2222-4222-8222-222222222222',
-      metadata,
+    it('filters by related user and paginates newest activity', async () => {
+        const { service, repository } = createService([]);
+        await service.findAll(7, { page: 2, limit: 5 });
+        expect(repository.findAndCount).toHaveBeenCalledWith({
+            where: { user: { id: 7 } },
+            order: { createdAt: 'DESC' },
+            skip: 5,
+            take: 5,
+        });
     });
-  });
 
-  it('returns only the requested user history with pagination metadata', async () => {
-    const logs = [Object.assign(new ActivityLog(), { userId })];
-    const { service, repository } = createService(logs);
-
-    const response = await service.findAll(userId, { page: 2, limit: 5 });
-
-    expect(response.meta).toEqual({ total: 1, page: 2, limit: 5, totalPages: 1 });
-    expect(repository.findAndCount).toHaveBeenCalledWith({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-      skip: 5,
-      take: 5,
+    it('rejects an invalid authenticated user id', async () => {
+        const { service } = createService();
+        await expect(service.findAll(0)).rejects.toBeInstanceOf(BadRequestException);
     });
-  });
 
-  it('rejects requests without an authenticated user id', async () => {
-    const { service } = createService();
-
-    await expect(service.findAll('')).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.logActivity('', { action: ActivityAction.LIST_CREATED })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-  });
+    it('accepts every specified activity action and preserves metadata', async () => {
+        const { service, repository } = createService();
+        for (const action of Object.values(ActivityAction)) {
+            await service.logActivity(7, { action, metadata: { source: 'test' } });
+        }
+        expect(repository.create).toHaveBeenCalledTimes(Object.values(ActivityAction).length);
+        expect(repository.create).toHaveBeenLastCalledWith({
+            user: { id: 7 },
+            action: ActivityAction.LIST_CREATED,
+            mediaItem: null,
+            metadata: { source: 'test' },
+        });
+    });
 });

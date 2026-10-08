@@ -7,13 +7,13 @@ import { AppService } from './app.service.js';
 @ApiTags('App')
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+    constructor(private readonly appService: AppService) {}
 
-  @Get()
-  @ApiAuthenticated()
-  @ApiOperation({ summary: 'Mensaje de bienvenida (requiere autenticación)' })
-  @ApiOkResponse({ description: 'Hello World!', type: String })
-  getHello(): string {
-    return this.appService.getHello();
-  }
+    @Get()
+    @ApiAuthenticated()
+    @ApiOperation({ summary: 'Mensaje de bienvenida (requiere autenticación)' })
+    @ApiOkResponse({ description: 'Hello World!', type: String })
+    getHello(): string {
+        return this.appService.getHello();
+    }
 }

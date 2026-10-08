@@ -5,10 +5,10 @@ import { ActivityLogsController } from './activity_logs.controller.js';
 import { ActivityLog } from '../entities/activity_log.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ActivityLog])],
-  controllers: [ActivityLogsController],
-  providers: [ActivityLogsService],
-  exports: [ActivityLogsService],
+    imports: [TypeOrmModule.forFeature([ActivityLog])],
+    controllers: [ActivityLogsController],
+    providers: [ActivityLogsService],
+    exports: [ActivityLogsService],
 })
 export class ActivityLogsModule {}
 

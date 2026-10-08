@@ -11,8 +11,17 @@ import { ActivityLogsModule } from './activity_logs/activity_logs.module.js';
 import { RevokedTokenModule } from './revoked-token/revoked-token.module.js';
 
 @Module({
-  controllers: [LibraryElementsController],
-  providers: [LibraryElementsService],
-  imports: [GenreModule, MediaItemModule, LibraryEntriesModule, UserListsModule, ReviewModule, ReviewReportModule, ActivityLogsModule, RevokedTokenModule],
+    controllers: [LibraryElementsController],
+    providers: [LibraryElementsService],
+    imports: [
+        GenreModule,
+        MediaItemModule,
+        LibraryEntriesModule,
+        UserListsModule,
+        ReviewModule,
+        ReviewReportModule,
+        ActivityLogsModule,
+        RevokedTokenModule,
+    ],
 })
 export class LibraryElementsModule {}

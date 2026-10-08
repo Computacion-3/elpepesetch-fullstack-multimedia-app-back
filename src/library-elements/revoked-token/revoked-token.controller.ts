@@ -5,30 +5,30 @@ import { UpdateRevokedTokenDto } from './dto/update-revoked-token.dto.js';
 
 @Controller('revoked-token')
 export class RevokedTokenController {
-  constructor(private readonly revokedTokenService: RevokedTokenService) {}
+    constructor(private readonly revokedTokenService: RevokedTokenService) {}
 
-  @Post()
-  create(@Body() createRevokedTokenDto: CreateRevokedTokenDto) {
-    return this.revokedTokenService.create(createRevokedTokenDto);
-  }
+    @Post()
+    create(@Body() createRevokedTokenDto: CreateRevokedTokenDto) {
+        return this.revokedTokenService.create(createRevokedTokenDto);
+    }
 
-  @Get()
-  findAll() {
-    return this.revokedTokenService.findAll();
-  }
+    @Get()
+    findAll() {
+        return this.revokedTokenService.findAll();
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.revokedTokenService.findOne(id);
-  }
+    @Get(':id')
+    findOne(@Param('id') id: string) {
+        return this.revokedTokenService.findOne(id);
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateRevokedTokenDto: UpdateRevokedTokenDto) {
-    return this.revokedTokenService.update(id, updateRevokedTokenDto);
-  }
+    @Patch(':id')
+    update(@Param('id') id: string, @Body() updateRevokedTokenDto: UpdateRevokedTokenDto) {
+        return this.revokedTokenService.update(id, updateRevokedTokenDto);
+    }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.revokedTokenService.remove(id);
-  }
+    @Delete(':id')
+    remove(@Param('id') id: string) {
+        return this.revokedTokenService.remove(id);
+    }
 }

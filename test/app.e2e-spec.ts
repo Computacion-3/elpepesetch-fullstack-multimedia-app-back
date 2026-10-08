@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
@@ -10,7 +9,7 @@ import { setupSwagger } from './../src/common/swagger/setup-swagger.js';
 
 // Requiere PostgreSQL (variables POSTGRES_* / DB_HOST) y JWT_SECRET en el entorno.
 describe('Seguridad: autenticación y autorización (e2e)', () => {
-    let app: INestApplication<App>;
+    let app: INestApplication;
     let adminToken: string;
     let userToken: string;
 
@@ -213,7 +212,9 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
                 .expect(200);
 
             expect(body.fullName).toBe('Nombre Completo');
-            expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(before.body.updatedAt).getTime());
+            expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(
+                new Date(before.body.updatedAt).getTime(),
+            );
             expect(body.isActive).toBe(true);
         });
 

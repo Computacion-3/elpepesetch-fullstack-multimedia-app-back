@@ -1,13 +1,5 @@
 import { Exclude } from 'class-transformer';
-import {
-    Column,
-    Entity,
-    JoinColumn,
-    ManyToOne,
-    OneToMany,
-    PrimaryGeneratedColumn,
-    UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import type { Relation } from 'typeorm';
 
 import { Role } from './role.entity.js';

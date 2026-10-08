@@ -69,7 +69,10 @@ export class RoleController {
     }
 
     @Put(':id/permissions')
-    @ApiOperation({ summary: 'Definir los permisos de un rol', description: 'Reemplaza el conjunto de permisos del rol.' })
+    @ApiOperation({
+        summary: 'Definir los permisos de un rol',
+        description: 'Reemplaza el conjunto de permisos del rol.',
+    })
     @ApiParam(ID_PARAM)
     @ApiOkResponse({ type: RoleResponseDto })
     @ApiBadRequestResponse({ description: 'Datos inválidos o algún permiso no existe' })

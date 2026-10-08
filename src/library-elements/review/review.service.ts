@@ -4,34 +4,50 @@ import { Repository } from 'typeorm';
 import { Review } from '../entities/review.entity.js';
 import { CreateReviewDto } from './dto/create-review.dto.js';
 import { UpdateReviewDto } from './dto/update-review.dto.js';
+import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
+import { ActivityAction } from '../enums/library.enums.js';
 
 @Injectable()
 export class ReviewService {
-  constructor(@InjectRepository(Review) private readonly repository: Repository<Review>) {}
-  create(createReviewDto: CreateReviewDto) {
-    const { mediaItemId: _mediaItemId, ...data } = createReviewDto;
-    return this.repository.save(this.repository.create(data));
-  }
+    constructor(
+        @InjectRepository(Review) private readonly repository: Repository<Review>,
+        private readonly activityLogsService: ActivityLogsService,
+    ) {}
+    async create(userId: number, createReviewDto: CreateReviewDto) {
+        const { mediaItemId, ...data } = createReviewDto;
+        const review = await this.repository.save(
+            this.repository.create({
+                ...data,
+                user: { id: userId },
+                mediaItem: { id: mediaItemId },
+            }),
+        );
+        await this.activityLogsService.logActivity(userId, {
+            action: ActivityAction.REVIEW_CREATED,
+            mediaItemId,
+        });
+        return review;
+    }
 
-  findAll() {
-    return this.repository.find({ relations: { mediaItem: true, user: true } });
-  }
+    findAll() {
+        return this.repository.find({ relations: { mediaItem: true, user: true } });
+    }
 
-  async findOne(id: string) {
-    const entity = await this.repository.findOne({ where: { id }, relations: { mediaItem: true, user: true } });
-    if (!entity) throw new NotFoundException(`Review ${id} not found`);
-    return entity;
-  }
+    async findOne(id: string) {
+        const entity = await this.repository.findOne({ where: { id }, relations: { mediaItem: true, user: true } });
+        if (!entity) throw new NotFoundException(`Review ${id} not found`);
+        return entity;
+    }
 
-  async update(id: string, updateReviewDto: UpdateReviewDto) {
-    const entity = await this.findOne(id);
-    const { mediaItemId: _mediaItemId, ...data } = updateReviewDto;
-    return this.repository.save(this.repository.merge(entity, data));
-  }
+    async update(id: string, updateReviewDto: UpdateReviewDto) {
+        const entity = await this.findOne(id);
+        const { mediaItemId: _mediaItemId, ...data } = updateReviewDto;
+        return this.repository.save(this.repository.merge(entity, data));
+    }
 
-  async remove(id: string) {
-    const entity = await this.findOne(id);
-    await this.repository.remove(entity);
-    return { message: `Review ${id} deleted successfully` };
-  }
+    async remove(id: string) {
+        const entity = await this.findOne(id);
+        await this.repository.remove(entity);
+        return { message: `Review ${id} deleted successfully` };
+    }
 }

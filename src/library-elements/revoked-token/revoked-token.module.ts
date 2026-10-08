@@ -5,8 +5,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RevokedToken } from '../../auth/entities/revoked-token.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([RevokedToken])],
-  controllers: [RevokedTokenController],
-  providers: [RevokedTokenService],
+    imports: [TypeOrmModule.forFeature([RevokedToken])],
+    controllers: [RevokedTokenController],
+    providers: [RevokedTokenService],
 })
 export class RevokedTokenModule {}
