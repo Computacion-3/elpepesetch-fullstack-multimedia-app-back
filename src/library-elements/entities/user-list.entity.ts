@@ -9,12 +9,17 @@ import { MediaItem } from './media-item.entity.js';
 export class UserList {
     @PrimaryGeneratedColumn('uuid') id: string;
     @Column({ length: 80 }) name: string;
-    @Column({ length: 255, nullable: true }) description: string | null;
+    @Column({ type: 'varchar', length: 255, nullable: true }) description: string | null;
     @Column({ type: 'enum', enum: ListVisibility, default: ListVisibility.PRIVATE }) visibility: ListVisibility;
     @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
     @JoinColumn({ name: 'owner_id' }) owner: Relation<User>;
     @ManyToMany(() => MediaItem, (mediaItem) => mediaItem.lists)
-    @JoinTable({ name: 'list_items' }) items: Relation<MediaItem[]>;
+    @JoinTable({
+        name: 'list_items',
+        joinColumn: { name: 'user_list_id', referencedColumnName: 'id' },
+        inverseJoinColumn: { name: 'media_item_id', referencedColumnName: 'id' },
+    })
+    items: Relation<MediaItem[]>;
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' }) createdAt: Date;
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' }) updatedAt: Date;
 }

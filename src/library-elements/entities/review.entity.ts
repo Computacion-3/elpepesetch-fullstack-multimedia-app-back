@@ -12,10 +12,10 @@ export class Review {
     @JoinColumn({ name: 'user_id' }) user: Relation<User>;
     @ManyToOne(() => MediaItem, (mediaItem) => mediaItem.reviews, { nullable: false, onDelete: 'CASCADE' })
     @JoinColumn({ name: 'media_item_id' }) mediaItem: Relation<MediaItem>;
-    @Column({ length: 100, nullable: true }) title: string | null;
+    @Column({ type: 'varchar', length: 100, nullable: true }) title: string | null;
     @Column({ type: 'text' }) content: string;
     @Column({ name: 'is_hidden', default: false }) isHidden: boolean;
-    @Column({ name: 'hidden_reason', length: 255, nullable: true }) hiddenReason: string | null;
+    @Column({ name: 'hidden_reason', type: 'varchar', length: 255, nullable: true }) hiddenReason: string | null;
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' }) createdAt: Date;
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' }) updatedAt: Date;
     @OneToMany(() => ReviewReport, (report) => report.review) reports: Relation<ReviewReport[]>;

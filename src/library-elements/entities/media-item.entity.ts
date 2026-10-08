@@ -29,14 +29,14 @@ export class MediaItem {
     @Column({ type: 'text', nullable: true }) description: string | null;
     @Column({ name: 'release_year', type: 'int' }) releaseYear: number;
     @Column({ length: 120 }) creator: string;
-    @Column({ name: 'cover_url', length: 500, nullable: true }) coverUrl: string | null;
-    @Column({ length: 60, nullable: true }) platform: string | null;
+    @Column({ name: 'cover_url', type: 'varchar', length: 500, nullable: true }) coverUrl: string | null;
+    @Column({ type: 'varchar', length: 60, nullable: true }) platform: string | null;
     @Column({ name: 'duration_minutes', type: 'int', nullable: true }) durationMinutes: number | null;
     @Column({ type: 'int', nullable: true }) pages: number | null;
-    @Column({ length: 20, nullable: true }) isbn: string | null;
+    @Column({ type: 'varchar', length: 20, nullable: true }) isbn: string | null;
     @Column({ name: 'approval_status', type: 'enum', enum: ApprovalStatus, default: ApprovalStatus.PENDING })
     approvalStatus: ApprovalStatus;
-    @Column({ name: 'rejection_reason', length: 255, nullable: true }) rejectionReason: string | null;
+    @Column({ name: 'rejection_reason', type: 'varchar', length: 255, nullable: true }) rejectionReason: string | null;
     @Column({ name: 'average_rating', type: 'decimal', precision: 3, scale: 1, default: 0 }) averageRating: number;
     @Column({ name: 'ratings_count', type: 'int', default: 0 }) ratingsCount: number;
 
@@ -44,7 +44,11 @@ export class MediaItem {
     @JoinColumn({ name: 'created_by_id' })
     createdBy: Relation<User>;
     @ManyToMany(() => Genre, (genre) => genre.mediaItems)
-    @JoinTable({ name: 'media_item_genres' })
+    @JoinTable({
+        name: 'media_item_genres',
+        joinColumn: { name: 'media_item_id', referencedColumnName: 'id' },
+        inverseJoinColumn: { name: 'genre_id', referencedColumnName: 'id' },
+    })
     genres: Relation<Genre[]>;
     @OneToMany(() => LibraryEntry, (entry) => entry.mediaItem)
     libraryEntries: Relation<LibraryEntry[]>;
