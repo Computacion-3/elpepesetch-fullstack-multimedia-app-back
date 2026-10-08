@@ -9,6 +9,8 @@ import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt/jwt-auth.guard.js';
 import { PermissionsGuard } from './auth/guards/permissions/permissions.guard.js';
 import { LoggerModule } from './common/logger/logger.module.js';
+import { LibraryElementsModule } from './library-elements/library-elements.module.js';
+import { LibraryElementsModule } from './library-elements/library-elements.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -42,6 +44,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         }),
         LoggerModule,
         AuthModule,
+        LibraryElementsModule,
     ],
     controllers: [AppController],
     providers: [
