@@ -50,11 +50,11 @@ export class MediaItem {
         inverseJoinColumn: { name: 'genre_id', referencedColumnName: 'id' },
     })
     genres: Relation<Genre[]>;
-    @OneToMany(() => LibraryEntry, (entry) => entry.mediaItem) // TODO: replace mediaItemId with @ManyToOne(() => MediaItem) mediaItem when media is implemented.
+    @OneToMany(() => LibraryEntry, (entry) => entry.mediaItem)
     libraryEntries: Relation<LibraryEntry[]>;
     @OneToMany(() => Review, (review) => review.mediaItem)
     reviews: Relation<Review[]>;
-    @ManyToMany(() => UserList, (list) => list.items) // TODO: replace itemIds with @ManyToMany(() => MediaItem) items and @JoinTable({ name: 'list_items' }) when the media entity is implemented.
+    @ManyToMany(() => UserList, (list) => list.items)
     lists: Relation<UserList[]>;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' }) createdAt: Date;

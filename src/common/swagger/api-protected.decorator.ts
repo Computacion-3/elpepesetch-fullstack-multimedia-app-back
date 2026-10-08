@@ -15,5 +15,7 @@ export const ApiAuthenticated = () =>
 export const ApiRequiresPermission = (...permissions: string[]) =>
     applyDecorators(
         ApiAuthenticated(),
-        ApiForbiddenResponse({ description: `El rol del usuario no tiene el permiso requerido: ${permissions.join(', ')}` }),
+        ApiForbiddenResponse({
+            description: `El rol del usuario no tiene el permiso requerido: ${permissions.join(', ')}`,
+        }),
     );

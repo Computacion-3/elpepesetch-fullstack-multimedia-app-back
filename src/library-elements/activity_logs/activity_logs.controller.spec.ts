@@ -3,18 +3,18 @@ import { ActivityLogsController } from './activity_logs.controller.js';
 import { ActivityLogsService } from './activity_logs.service.js';
 
 describe('ActivityLogsController', () => {
-  let controller: ActivityLogsController;
+    let controller: ActivityLogsController;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [ActivityLogsController],
-      providers: [ActivityLogsService],
-    }).compile();
+    beforeEach(async () => {
+        const module: TestingModule = await Test.createTestingModule({
+            controllers: [ActivityLogsController],
+            providers: [ActivityLogsService, { provide: 'ActivityLogRepository', useValue: {} }],
+        }).compile();
 
-    controller = module.get<ActivityLogsController>(ActivityLogsController);
-  });
+        controller = module.get<ActivityLogsController>(ActivityLogsController);
+    });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
-  });
+    it('should be defined', () => {
+        expect(controller).toBeDefined();
+    });
 });

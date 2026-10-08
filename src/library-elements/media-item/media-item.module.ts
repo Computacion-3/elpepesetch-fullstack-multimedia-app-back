@@ -5,8 +5,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MediaItem } from '../entities/media-item.entity.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MediaItem])],
-  controllers: [MediaItemController],
-  providers: [MediaItemService],
+    imports: [TypeOrmModule.forFeature([MediaItem])],
+    controllers: [MediaItemController],
+    providers: [MediaItemService],
 })
 export class MediaItemModule {}

@@ -1,22 +1,25 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import type { Relation } from 'typeorm';
+import { User } from '../../auth/entities/user.entity.js';
+import { MediaItem } from './media-item.entity.js';
 import { ActivityAction } from '../enums/library.enums.js';
 
 @Entity('activity_logs')
-@Index(['userId', 'createdAt'])
+@Index(['user', 'createdAt'])
 export class ActivityLog {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    // TODO: replace userId with @ManyToOne(() => User) user when users is implemented.
-    @Column({ type: 'uuid', name: 'user_id' })
-    userId: string;
+    @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'user_id' })
+    user: Relation<User>;
 
     @Column({ type: 'enum', enum: ActivityAction })
     action: ActivityAction;
 
-    // TODO: replace mediaItemId with @ManyToOne(() => MediaItem) mediaItem when media is implemented.
-    @Column({ type: 'uuid', name: 'media_item_id', nullable: true, default: null })
-    mediaItemId: string | null;
+    @ManyToOne(() => MediaItem, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'media_item_id' })
+    mediaItem: Relation<MediaItem> | null;
 
     @Column({ type: 'jsonb', nullable: true, default: null })
     metadata: Record<string, unknown> | null;
