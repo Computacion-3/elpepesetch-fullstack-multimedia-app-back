@@ -35,6 +35,11 @@ export enum ReportStatus {
     DISMISSED = 'DISMISSED',
 }
 
+export enum ReportResolutionAction {
+    HIDE = 'HIDE',
+    DISMISS = 'DISMISS',
+}
+
 export enum ActivityAction {
     ENTRY_ADDED = 'ENTRY_ADDED',
     STATUS_CHANGED = 'STATUS_CHANGED',

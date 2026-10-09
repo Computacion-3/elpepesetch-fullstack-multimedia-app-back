@@ -24,8 +24,12 @@ export class ReviewReport {
     @JoinColumn({ name: 'reporter_id' })
     reporter: Relation<User>;
     @Column({ type: 'enum', enum: ReportReason }) reason: ReportReason;
-    @Column({ type: 'text', nullable: true }) details: string | null;
+    @Column({ name: 'details', type: 'varchar', length: 255, nullable: true }) comment: string | null;
     @Column({ type: 'enum', enum: ReportStatus, default: ReportStatus.OPEN }) status: ReportStatus;
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'resolved_by_id' })
+    resolvedBy: Relation<User> | null;
+    @Column({ name: 'resolved_at', type: 'timestamptz', nullable: true }) resolvedAt: Date | null;
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' }) createdAt: Date;
     @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' }) updatedAt: Date;
 }

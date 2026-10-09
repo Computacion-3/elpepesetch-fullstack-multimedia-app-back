@@ -48,6 +48,7 @@ INSERT INTO permissions (name, description) VALUES
     ('reviews:delete', 'Eliminar reseñas'),
     ('reviews:moderate', 'Ocultar o restaurar reseñas reportadas'),
     ('reports:create', 'Reportar reseñas'),
+    ('stats:read_global', 'Consultar estadísticas globales de la plataforma'),
     ('activity:read', 'Consultar el historial de actividad'),
     ('seed:manage', 'Ejecutar el cargue inicial de datos')
 ON CONFLICT (name) DO UPDATE

@@ -1,8 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ReportReason } from '../../enums/library.enums.js';
 export class CreateReviewReportDto {
-    @ApiProperty() @IsUUID() reviewId: string;
     @ApiProperty({ enum: ReportReason }) @IsEnum(ReportReason) reason: ReportReason;
-    @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) details?: string;
+    @ApiPropertyOptional({ maxLength: 255, description: 'Comentario adicional del reporte' })
+    @IsOptional()
+    @IsString()
+    @MaxLength(255)
+    comment?: string;
 }
