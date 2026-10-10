@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
@@ -10,7 +9,7 @@ import { setupSwagger } from './../src/common/swagger/setup-swagger.js';
 
 // Requiere PostgreSQL (variables POSTGRES_* / DB_HOST) y JWT_SECRET en el entorno.
 describe('Seguridad: autenticación y autorización (e2e)', () => {
-    let app: INestApplication<App>;
+    let app: INestApplication;
     let adminToken: string;
     let userToken: string;
 
@@ -213,7 +212,9 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
                 .expect(200);
 
             expect(body.fullName).toBe('Nombre Completo');
-            expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(before.body.updatedAt).getTime());
+            expect(new Date(body.updatedAt).getTime()).toBeGreaterThanOrEqual(
+                new Date(before.body.updatedAt).getTime(),
+            );
             expect(body.isActive).toBe(true);
         });
 
@@ -238,6 +239,28 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
         it('cerrar sesión no invalida otras sesiones del mismo usuario', async () => {
             const other = await login('user@test.com', 'Secreta123');
             await request(app.getHttpServer()).get('/auth/me').set('Authorization', `Bearer ${other}`).expect(200);
+        });
+
+        it('la lista de tokens revocados no está expuesta por HTTP', async () => {
+            for (const token of [userToken, adminToken]) {
+                await request(app.getHttpServer())
+                    .get('/revoked-token')
+                    .set('Authorization', `Bearer ${token}`)
+                    .expect(404);
+            }
+        });
+
+        it('un token revocado no se puede "desrevocar" borrándolo por HTTP', async () => {
+            const token = await login('user@test.com', 'Secreta123');
+            await request(app.getHttpServer()).post('/auth/logout').set('Authorization', `Bearer ${token}`).expect(204);
+
+            const other = await login('user@test.com', 'Secreta123');
+            await request(app.getHttpServer())
+                .delete('/revoked-token/cualquier-id')
+                .set('Authorization', `Bearer ${other}`)
+                .expect(404);
+
+            await request(app.getHttpServer()).get('/auth/me').set('Authorization', `Bearer ${token}`).expect(401);
         });
     });
 });

@@ -29,7 +29,10 @@ export class AuthController {
 
     @Public()
     @Post('register')
-    @ApiOperation({ summary: 'Registrar un usuario', description: 'Crea una cuenta con el rol USER. El rol no se acepta del cliente.' })
+    @ApiOperation({
+        summary: 'Registrar un usuario',
+        description: 'Crea una cuenta con el rol USER. El rol no se acepta del cliente.',
+    })
     @ApiCreatedResponse({ description: 'Usuario creado (sin contraseña)', type: UserResponseDto })
     @ApiBadRequestResponse({ description: 'Datos inválidos (falla la validación del DTO)' })
     @ApiConflictResponse({ description: 'El correo o el nombre de usuario ya están en uso' })
@@ -40,7 +43,10 @@ export class AuthController {
     @Public()
     @Post('login')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Iniciar sesión', description: 'Devuelve un JWT (con jti único) y los datos básicos del usuario.' })
+    @ApiOperation({
+        summary: 'Iniciar sesión',
+        description: 'Devuelve un JWT (con jti único) y los datos básicos del usuario.',
+    })
     @ApiOkResponse({ description: 'Sesión iniciada', type: LoginResponseDto })
     @ApiBadRequestResponse({ description: 'Datos inválidos (falla la validación del DTO)' })
     @ApiUnauthorizedResponse({ description: 'Credenciales inválidas' })
@@ -51,7 +57,10 @@ export class AuthController {
     @Post('logout')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiAuthenticated()
-    @ApiOperation({ summary: 'Cerrar sesión', description: 'Revoca el token actual: deja de ser válido aunque no haya expirado.' })
+    @ApiOperation({
+        summary: 'Cerrar sesión',
+        description: 'Revoca el token actual: deja de ser válido aunque no haya expirado.',
+    })
     @ApiNoContentResponse({ description: 'Token revocado' })
     logout(@CurrentUser() user: AuthenticatedUser): Promise<void> {
         return this.authService.logout(user);

@@ -66,18 +66,25 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Deployment
+## Despliegue (Docker + Render)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+La imagen se construye con el `Dockerfile` de la raíz (multi-stage, Node 24, usuario sin privilegios).
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Probar la imagen en local
+docker build -t elpepesetch-back .
+docker run --env-file .env -e DB_HOST=host.docker.internal -p 3000:3000 elpepesetch-back
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**En Render:**
+
+1. Crear una base de datos PostgreSQL.
+2. Crear un *Web Service* desde este repositorio con runtime **Docker**.
+3. Variables de entorno: `DB_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `JWT_SECRET` (uno nuevo, no el de `.env.example`), `JWT_EXPIRES_IN`, `SALT_QTY`. Con la URL interna de Render, `DB_SSL=false`; con Supabase o la URL externa, `DB_SSL=true`.
+4. Al primer arranque TypeORM crea las tablas. Luego cargar los datos iniciales desde tu equipo: `psql "<URL externa>" -f db/seed.sql`.
+5. Verificar en `https://<servicio>.onrender.com/api/docs`.
+
+**CD:** copiar el *Deploy Hook* del servicio en Render y guardarlo como secreto `RENDER_DEPLOY_HOOK_URL` en GitHub. El workflow `cd.yml` se ejecuta al terminar `ci.yml` y lo invoca solo si las pruebas pasaron en un push a `master`. También se puede lanzar a mano desde la pestaña *Actions*.
 
 ## Observability
 
