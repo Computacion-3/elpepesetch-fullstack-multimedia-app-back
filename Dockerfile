@@ -23,6 +23,9 @@ COPY --from=build --chown=node:node /app/package.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 
+# AppLogger escribe en ./logs al arrancar: la carpeta debe pertenecer al usuario node
+RUN mkdir -p /app/logs && chown node:node /app/logs
+
 USER node
 
 # Render/Railway inyectan PORT; 3000 es el valor por defecto de main.ts
