@@ -1,0 +1,35 @@
+name: CD Render
+
+# Se ejecuta cuando termina el workflow de CI. Solo despliega si las pruebas
+# pasaron en un push a master (no en pull requests).
+on:
+  workflow_run:
+    workflows: [ "CI NestJS Tests" ]
+    types: [ completed ]
+    branches: [ "master" ]
+  # Permite relanzar el despliegue a mano desde la pestaña Actions
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Disparar despliegue en Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL no está configurado; se omite el despliegue."
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL"
+          echo "Despliegue solicitado para ${{ github.event.workflow_run.head_sha || github.sha }}"

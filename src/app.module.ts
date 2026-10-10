@@ -37,6 +37,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
                 username: configService.get<string>('POSTGRES_USER'),
                 password: configService.get<string>('POSTGRES_PASSWORD'),
                 database: configService.get<string>('POSTGRES_DB'),
+                // Supabase y las conexiones externas de Render exigen SSL; en local queda apagado.
+                ssl: configService.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
                 autoLoadEntities: true,
                 synchronize: true,
             }),
