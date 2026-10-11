@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    HttpCode,
+    HttpStatus,
+    Param,
+    ParseIntPipe,
+    Patch,
+    Post,
+    Query,
+} from '@nestjs/common';
 import {
     ApiBadRequestResponse,
     ApiBody,
@@ -10,7 +22,10 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface.js';
-import { ApiAuthenticated } from '../../common/swagger/api-protected.decorator.js';
+import { ApiAuthenticated, ApiRequiresPermission } from '../../common/swagger/api-protected.decorator.js';
+import { Permissions } from '../../auth/decorators/permissions.decorator.js';
+import { PERMISSIONS } from '../../auth/constants/auth.constants.js';
+import { PositiveIntPipe } from '../../common/pipes/positive-int-pipe.js';
 import { LibraryEntriesService } from './library_entries.service.js';
 import { CreateLibraryEntryDto } from './dto/create-library_entry.dto.js';
 import { LibraryQueryDto } from './dto/library-query.dto.js';
@@ -50,6 +65,29 @@ export class LibraryEntriesController {
     @ApiResponse({ status: 401, description: 'No autenticado' })
     findAll(@CurrentUser() user: AuthenticatedUser, @Query() query: LibraryQueryDto) {
         return this.libraryEntriesService.findAll(user.id, query);
+    }
+
+    @Get('user/:userId')
+    @Permissions(PERMISSIONS.USERS_MANAGE)
+    @ApiRequiresPermission(PERMISSIONS.USERS_MANAGE)
+    @ApiOperation({ summary: 'Consultar la biblioteca de otro usuario (administrador)' })
+    @ApiParam({ name: 'userId', type: Number, description: 'Identificador del usuario objetivo', example: 7 })
+    @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'DROPPED'] })
+    @ApiQuery({ name: 'isFavorite', required: false, type: Boolean })
+    @ApiQuery({ name: 'q', required: false, type: String })
+    @ApiQuery({ name: 'type', required: false, enum: ['GAME', 'MOVIE', 'BOOK'] })
+    @ApiQuery({ name: 'genreId', required: false, type: String, format: 'uuid' })
+    @ApiQuery({ name: 'year', required: false, type: Number })
+    @ApiQuery({ name: 'sortBy', required: false, enum: ['title', 'releaseYear', 'averageRating', 'addedAt'] })
+    @ApiQuery({ name: 'order', required: false, enum: ['ASC', 'DESC'] })
+    @ApiQuery({ name: 'page', required: false, type: Number, minimum: 1, default: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, minimum: 1, maximum: 50, default: 10 })
+    @ApiResponse({ status: 200, description: 'Biblioteca paginada del usuario solicitado' })
+    @ApiBadRequestResponse({ description: 'Identificador o parámetros de filtro inválidos' })
+    @ApiResponse({ status: 401, description: 'No autenticado' })
+    @ApiResponse({ status: 403, description: 'El rol no tiene permiso de administración' })
+    findByUser(@Param('userId', ParseIntPipe, PositiveIntPipe) userId: number, @Query() query: LibraryQueryDto) {
+        return this.libraryEntriesService.findAll(userId, query);
     }
 
     @Get(':id')

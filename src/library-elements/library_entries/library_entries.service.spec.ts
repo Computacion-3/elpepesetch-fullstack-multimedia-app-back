@@ -3,6 +3,7 @@ import { LibraryEntriesService } from './library_entries.service.js';
 import { LibraryEntry } from '../entities/library_entry.entity.js';
 import { MediaItem } from '../entities/media-item.entity.js';
 import { ApprovalStatus, LibraryStatus, MediaType } from '../enums/library.enums.js';
+import { QueryFailedError } from 'typeorm';
 
 describe('LibraryEntriesService', () => {
     const mediaItem = Object.assign(new MediaItem(), {
@@ -20,7 +21,7 @@ describe('LibraryEntriesService', () => {
         createdBy: { id: 7 },
     });
 
-    function createService(initialEntries: LibraryEntry[] = [], media = mediaItem) {
+    function createService(initialEntries: LibraryEntry[] = [], media = mediaItem, saveError?: unknown) {
         const entries = [...initialEntries];
         const repository = {
             create: vi.fn((value: Partial<LibraryEntry>) => Object.assign(new LibraryEntry(), value)),
@@ -34,6 +35,7 @@ describe('LibraryEntriesService', () => {
             ),
             find: vi.fn(async () => entries),
             save: vi.fn(async (entry: LibraryEntry) => {
+                if (saveError) throw saveError;
                 if (!entry.id) entries.push(entry);
                 return entry;
             }),
@@ -75,6 +77,12 @@ describe('LibraryEntriesService', () => {
         await expect(pendingService.create(7, { mediaItemId: mediaItem.id, rating: 8 })).rejects.toBeInstanceOf(
             BadRequestException,
         );
+    });
+
+    it('maps a concurrent database duplicate to conflict', async () => {
+        const duplicateError = new QueryFailedError('INSERT', [], { code: '23505' });
+        const { service } = createService([], mediaItem, duplicateError);
+        await expect(service.create(7, { mediaItemId: mediaItem.id })).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('completes a book when progress reaches its page maximum', async () => {

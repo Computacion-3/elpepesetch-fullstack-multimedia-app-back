@@ -23,7 +23,9 @@ export class LibraryQueryDto {
 
     @ApiPropertyOptional()
     @IsOptional()
-    @Transform(({ value }) => value === true || value === 'true')
+    @Transform(({ value }) =>
+        value === true || value === 'true' ? true : value === false || value === 'false' ? false : value,
+    )
     @IsBoolean()
     isFavorite?: boolean;
 

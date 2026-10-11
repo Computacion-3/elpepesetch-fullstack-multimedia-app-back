@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
+import { isUniqueViolation } from '../../common/database/pg-errors.js';
 import { CreateLibraryEntryDto } from './dto/create-library_entry.dto.js';
 import { LibraryQueryDto, LibrarySortBy, SortOrder } from './dto/library-query.dto.js';
 import { UpdateLibraryEntryDto } from './dto/update-library_entry.dto.js';
@@ -41,7 +42,13 @@ export class LibraryEntriesService {
             completedAt: null,
         });
         this.applyStateRules(entry, mediaItem);
-        const saved = await this.repository.save(entry);
+        let saved: LibraryEntry;
+        try {
+            saved = await this.repository.save(entry);
+        } catch (error) {
+            if (isUniqueViolation(error)) throw new ConflictException('The media item is already in the library');
+            throw error;
+        }
         await this.recalculateRating(mediaItem.id);
         await this.activityLogsService.logActivity(userId, {
             action: ActivityAction.ENTRY_ADDED,
