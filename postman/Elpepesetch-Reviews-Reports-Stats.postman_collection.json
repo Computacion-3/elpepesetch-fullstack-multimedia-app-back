@@ -2932,6 +2932,42 @@
           ]
         },
         {
+          "name": "GET /library/user/:userId - consultar biblioteca como ADMIN",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/library/user/{{targetUserId}}?status=COMPLETED&type=BOOK&sortBy=addedAt&order=DESC&page=1&limit=50",
+            "description": "Consulta la biblioteca de otro usuario. Requiere el permiso users:manage.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('La biblioteca administrativa devuelve data y meta', function () { const body = pm.response.json(); pm.expect(body.data).to.be.an('array'); pm.expect(body.meta).to.have.property('total'); pm.expect(body.meta).to.have.property('totalPages'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "POST /library - crear entrada temporal de The Godfather",
           "request": {
             "method": "POST",
@@ -3712,6 +3748,12 @@
       "key": "adminToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "targetUserId",
+      "value": "3",
+      "type": "string",
+      "description": "ID del usuario USER del seed, consultado por el endpoint administrativo de biblioteca."
     },
     {
       "key": "libraryEntryId",
