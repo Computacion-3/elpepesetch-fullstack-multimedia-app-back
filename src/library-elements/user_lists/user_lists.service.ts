@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
@@ -9,6 +15,7 @@ import { UpdateUserListDto } from './dto/update-user_list.dto.js';
 import { UserList } from '../entities/user_list.entity.js';
 import { MediaItem } from '../entities/media-item.entity.js';
 import { ActivityAction, ApprovalStatus, ListVisibility } from '../enums/library.enums.js';
+import { isUniqueViolation } from '../../common/database/pg-errors.js';
 
 @Injectable()
 export class UserListsService {
@@ -21,13 +28,19 @@ export class UserListsService {
     async create(ownerId: number, dto: CreateUserListDto): Promise<UserList> {
         const duplicate = await this.repository.findOne({ where: { owner: { id: ownerId }, name: dto.name } });
         if (duplicate) throw new ConflictException('List name already exists for this owner');
-        const list = await this.repository.save(this.repository.create({
+        const list = this.repository.create({
             owner: { id: ownerId },
             name: dto.name,
             description: dto.description ?? null,
             visibility: dto.visibility ?? ListVisibility.PRIVATE,
             items: [],
-        }));
+        });
+        try {
+            await this.repository.save(list);
+        } catch (error) {
+            if (isUniqueViolation(error)) throw new ConflictException('List name already exists for this owner');
+            throw error;
+        }
         await this.activityLogsService.logActivity(ownerId, { action: ActivityAction.LIST_CREATED });
         return list;
     }
@@ -69,7 +82,12 @@ export class UserListsService {
             if (duplicate) throw new ConflictException('List name already exists for this owner');
         }
         Object.assign(list, dto);
-        return this.repository.save(list);
+        try {
+            return await this.repository.save(list);
+        } catch (error) {
+            if (isUniqueViolation(error)) throw new ConflictException('List name already exists for this owner');
+            throw error;
+        }
     }
 
     async remove(ownerId: number, id: string): Promise<void> {
@@ -83,14 +101,21 @@ export class UserListsService {
         if (mediaItem.approvalStatus !== ApprovalStatus.APPROVED) {
             throw new BadRequestException('Only approved media items can be added to a list');
         }
-        if (list.items.some((item) => item.id === mediaItem.id)) throw new ConflictException('The media item is already in the list');
+        if (list.items.some((item) => item.id === mediaItem.id))
+            throw new ConflictException('The media item is already in the list');
         list.items = [...list.items, mediaItem];
-        return this.repository.save(list);
+        try {
+            return await this.repository.save(list);
+        } catch (error) {
+            if (isUniqueViolation(error)) throw new ConflictException('The media item is already in the list');
+            throw error;
+        }
     }
 
     async removeItem(ownerId: number, id: string, mediaItemId: string): Promise<UserList> {
         const list = await this.findOwnedList(ownerId, id);
-        if (!list.items.some((item) => item.id === mediaItemId)) throw new NotFoundException('Media item is not in the list');
+        if (!list.items.some((item) => item.id === mediaItemId))
+            throw new NotFoundException('Media item is not in the list');
         list.items = list.items.filter((item) => item.id !== mediaItemId);
         return this.repository.save(list);
     }
@@ -103,7 +128,9 @@ export class UserListsService {
     }
 }
 
-export interface PublicListView extends UserList { ownerUsername: string; }
+export interface PublicListView extends UserList {
+    ownerUsername: string;
+}
 export interface PublicListsResponse {
     data: PublicListView[];
     meta: { total: number; page: number; limit: number; totalPages: number };

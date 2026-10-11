@@ -204,7 +204,7 @@ Los datos de seguridad viven en PostgreSQL y se manejan con TypeORM a través de
 
 ### Pruebas
 
-La seguridad se prueba en dos niveles: 60 pruebas unitarias con Vitest aíslan la lógica de servicios, estrategia y guards con repositorios simulados, y 29 pruebas E2E con Supertest levantan la aplicación completa contra PostgreSQL y recorren las rutas reales. Todos los servicios, la estrategia `JWT` y los guards del área tienen pruebas unitarias; los controladores se cubren con las E2E.
+La seguridad se prueba en dos niveles: las pruebas unitarias con Vitest aíslan la lógica de servicios, estrategia y guards con repositorios simulados, y 51 pruebas E2E con Supertest levantan la aplicación completa contra PostgreSQL y recorren las rutas reales. Todos los servicios, la estrategia `JWT` y los guards del área tienen pruebas unitarias; los controladores se cubren con las E2E.
 
 | Archivo | Tipo | Casos | Qué verifica |
 | --- | --- | --- | --- |
@@ -337,6 +337,7 @@ Los cambios de Library registran las acciones `ENTRY_ADDED`, `STATUS_CHANGED`, `
 | --- | --- | --- | --- | --- |
 | `POST` | `/library` | Agregar un elemento | `CreateLibraryEntryDto` | `201`, `400`, `401`, `409` |
 | `GET` | `/library` | Consultar la biblioteca propia | `LibraryQueryDto` | `200`, `400`, `401` |
+| `GET` | `/library/user/:userId` | Consultar la biblioteca de otro usuario (administrador) | `LibraryQueryDto`, `userId` positivo | `200`, `400`, `401`, `403` |
 | `GET` | `/library/:id` | Consultar una entrada propia | UUID | `200`, `401`, `404` |
 | `PATCH` | `/library/:id` | Actualizar una entrada propia | UUID y `UpdateLibraryEntryDto` | `200`, `400`, `401`, `404` |
 | `DELETE` | `/library/:id` | Eliminar una entrada propia | UUID | `204`, `401`, `404` |
@@ -439,7 +440,7 @@ Estos módulos no implementan JWT ni crean guards paralelos. Utilizan el `JwtAut
 - **Lists:** una lista privada ajena responde `404`; las mutaciones utilizan `findOwnedList()` y responden `403` si la lista existe pero pertenece a otro usuario.
 - **Activity:** el historial siempre filtra por `user.id`, sin permitir seleccionar otro usuario.
 
-El contrato general menciona que un administrador puede consultar bibliotecas ajenas, pero las rutas definidas no incluyen un parámetro ni endpoint para seleccionar otro usuario. Por ello no se creó una ruta adicional ni se inventó un contrato distinto; el comportamiento implementado mantiene la consulta de biblioteca propia hasta que esa ambigüedad se aclare.
+**Library administrativa:** `GET /library/user/:userId` permite a un administrador consultar la biblioteca de otro usuario. La ruta exige el permiso `users:manage`, reutiliza todos los filtros y la paginación de `GET /library`, y no permite modificar la biblioteca objetivo. Los usuarios sin ese permiso reciben `403`.
 
 ### Persistencia específica
 
@@ -463,15 +464,21 @@ La infraestructura del repositorio utiliza Vitest mediante `npm test`, aunque la
 | [user_lists.service.spec.ts](../src/library-elements/user_lists/user_lists.service.spec.ts) | Unitaria | creación, nombres duplicados, visibilidad, ownership, acceso público, aprobación, duplicados y eliminación |
 | [activity_logs.service.spec.ts](../src/library-elements/activity_logs/activity_logs.service.spec.ts) | Unitaria | registro, metadata, acciones, filtrado por usuario, paginación y orden |
 
-La suite E2E específica está en [library-elements.e2e-spec.ts](../test/library-elements.e2e-spec.ts) y cubre 20 casos: 14 rutas sin autenticación, ownership de Lists, aislamiento de Library y aislamiento y paginación de Activity. La suite general [app.e2e-spec.ts](../test/app.e2e-spec.ts) conserva por separado sus casos de autenticación y autorización.
+La suite E2E específica está en [library-elements.e2e-spec.ts](../test/library-elements.e2e-spec.ts) y cubre 22 casos: 15 rutas sin autenticación, rechazo de consulta administrativa por usuarios normales, ownership de Lists, aislamiento de Library y aislamiento y paginación de Activity. La suite general [app.e2e-spec.ts](../test/app.e2e-spec.ts) conserva por separado sus 29 casos de autenticación y autorización.
 
 Resultados comprobados:
 
 ```text
-npm test        -> 9 archivos y 35 tests aprobados
-npm run test:e2e -> 2 archivos y 41 tests aprobados
+npm test        -> 19 archivos y 95 tests aprobados
+npm run test:e2e -> requiere una base PostgreSQL cuyo nombre contenga "test"; sin ella, los 51 casos se omiten y la suite falla de forma segura antes de conectarse
 npm run build   -> compilación exitosa
+npm run lint    -> lint exitoso
 ```
+
+Además, las validaciones booleanas de `GET /library` rechazan valores distintos de
+`true` y `false`, y las restricciones únicas de Library y Lists convierten las
+colisiones concurrentes en respuestas `409 Conflict`, igual que las validaciones
+previas.
 
 Los E2E utilizan la aplicación NestJS real, JWT, PostgreSQL y Supertest. Requieren una base aislada cuyo nombre contenga `test`, porque la infraestructura trunca tablas antes de ejecutar.
 
@@ -481,7 +488,7 @@ La configuración compartida permanece en [setup-swagger.ts](../src/common/swagg
 
 La documentación específica incluye:
 
-- Library: `q`, `type`, `genreId`, `year`, `status`, `isFavorite`, `sortBy`, `order`, `page` y `limit`.
+- Library: `GET /library` y `GET /library/user/:userId`, con `q`, `type`, `genreId`, `year`, `status`, `isFavorite`, `sortBy`, `order`, `page` y `limit`. La ruta administrativa documenta además el permiso `users:manage`, el parámetro `userId` positivo y las respuestas `401`, `403` y `400`.
 - Lists: paginación de `/lists/public`, parámetros de ruta y DTOs de creación, actualización y elementos.
 - Activity: `page`, `limit`, respuesta paginada y orden descendente.
 
