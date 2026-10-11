@@ -496,6 +496,132 @@ Los DTOs muestran campos obligatorios y opcionales, enums, UUIDs, límites numé
 
 La especificación OpenAPI comprobada contiene las rutas, filtros, parámetros, DTOs y seguridad Bearer de los tres módulos.
 
+## Modelo de datos, DTOs y carga inicial
+
+### Entities y persistencia
+
+Las entities de TypeORM representan las tablas de PostgreSQL y se cargan automáticamente mediante `autoLoadEntities` en `AppModule`. La opción `synchronize: true` mantiene el esquema local alineado con las entities al arrancar la aplicación; por eso el servidor debe iniciarse al menos una vez antes de ejecutar el seed.
+
+Las entities de autenticación se encuentran en [src/auth/entities](../src/auth/entities) y forman el esquema de usuarios y autorización:
+
+| Entity | Tabla | Responsabilidad y relaciones |
+| --- | --- | --- |
+| `User` | `users` | Cuenta, correo, contraseña hasheada, estado y perfil. Tiene un `ManyToOne` con `Role` y relaciones con `UserRole`, `LibraryEntry`, `UserList`, reseñas, reportes y actividad. |
+| `Role` | `roles` | Rol funcional (`USER`, `MODERATOR` o `ADMIN`). Se relaciona con usuarios, `RolePermission` y permisos. |
+| `Permission` | `permissions` | Acción autorizable con formato `recurso:acción`, por ejemplo `library:read`. |
+| `UserRole` | `user_roles` | Tabla de relación para asignaciones usuario-rol adicionales, con eliminación en cascada. |
+| `RolePermission` | `role_permissions` | Tabla de relación entre roles y permisos, también con eliminación en cascada. |
+| `RevokedToken` | `revoked_tokens` | `jti` de JWT invalidados durante el logout y su fecha de expiración. |
+
+Las entities funcionales se encuentran en [src/library-elements/entities](../src/library-elements/entities):
+
+| Entity | Tabla | Responsabilidad y restricciones |
+| --- | --- | --- |
+| `Genre` | `genres` | Catálogo de géneros; el nombre es único y se relaciona con `MediaItem` mediante `media_item_genres`. |
+| `MediaItem` | `media_items` | Catálogo de juegos, películas y libros. Usa enums para el tipo y el estado de aprobación, conserva el creador, datos específicos como duración, páginas o ISBN, y relaciones con géneros, listas, biblioteca y reseñas. |
+| `LibraryEntry` | `library_entries` | Elemento guardado por un usuario, con estado, progreso, rating, favorito, notas y fechas de inicio/terminación. La combinación usuario-elemento es única. |
+| `UserList` | `user_lists` | Lista personalizada del usuario. El nombre es único por propietario y sus elementos se guardan en la tabla intermedia `list_items` mediante una relación `ManyToMany`. |
+| `Review` | `reviews` | Reseña de un usuario sobre un elemento multimedia. La combinación usuario-elemento es única y una reseña puede ocultarse con una razón de moderación. |
+| `ReviewReport` | `review_reports` | Reporte de una reseña, con motivo, estado y usuario que lo resolvió. Un usuario no puede reportar dos veces la misma reseña. |
+| `ActivityLog` | `activity_logs` | Historial de acciones del usuario, con acción enum, elemento opcional y metadata `jsonb`. Tiene un índice por usuario y fecha. |
+
+Las relaciones `ManyToOne` definen claves foráneas como `role_id`, `owner_id`, `user_id` y `media_item_id`. En general, los recursos propios se eliminan en cascada junto con su usuario; las referencias de catálogo que deben conservarse usan `RESTRICT` o `SET NULL` según la regla de negocio. Las restricciones de unicidad y los enums se declaran en las entities y también son respetados por los servicios.
+
+### DTOs y validación de entrada
+
+Los DTOs (`Data Transfer Objects`) definen la forma de los cuerpos y parámetros que acepta la API. No son entidades ni representan tablas: validan la entrada HTTP antes de llegar al servicio y alimentan la documentación Swagger mediante `@ApiProperty` y `@ApiPropertyOptional`. La `ValidationPipe` global transforma tipos cuando corresponde, rechaza propiedades no declaradas y devuelve `400` si se incumple una regla.
+
+Los DTOs de autenticación y administración están en [src/auth](../src/auth):
+
+| Grupo | DTOs principales | Validaciones |
+| --- | --- | --- |
+| Usuarios | `CreateUserDto`, `RegisterUserDto`, `UpdateUserDto`, `UpdateProfileDto`, `UpdateUserStatusDto`, `AssignRoleDto`, `UserQueryDto` | Username de 3-30 caracteres, email válido, contraseña con mínimo 8 caracteres y combinación de mayúscula, minúscula y número, role id entero, estado booleano y paginación de 1 a 50. |
+| Login | `UserLoginDto`, `LoginResponseDto` | Email válido y contraseña obligatoria; la respuesta documenta el `accessToken`, el tipo `Bearer` y el usuario serializado. |
+| Roles | `CreateRoleDto`, `UpdateRoleDto`, `SetRolePermissionsDto`, `RoleResponseDto` | Nombre y descripción con límites de longitud, además de ids de permisos enteros. |
+| Permisos | `CreatePermissionDto`, `UpdatePermissionDto`, `PermissionResponseDto` | Nombre único del permiso y descripción, con máximo de 50 y 255 caracteres respectivamente. |
+| Listados | `PaginatedUsersResponseDto` | Estructura común de resultados paginados: datos, página, límite y total. |
+
+`RegisterUserDto` se deriva de `CreateUserDto` omitiendo `roleId`; de esta forma, el cliente no puede registrarse como administrador y el servicio asigna siempre `USER`. Los DTOs de actualización usan campos opcionales para permitir cambios parciales.
+
+Los DTOs de catálogo y biblioteca están en [src/library-elements](../src/library-elements):
+
+| Área | DTOs | Función |
+| --- | --- | --- |
+| Catálogo y géneros | `CreateMediaItemDto`, `UpdateMediaItemDto`, `CreateGenreDto`, `UpdateGenreDto` | Validan título, tipo, año, creador, URL, datos específicos del formato, géneros y descripciones. |
+| Biblioteca | `CreateLibraryEntryDto`, `UpdateLibraryEntryDto`, `LibraryQueryDto` | Controlan UUID del elemento, estado, progreso no negativo, rating de 1 a 10, favorito, notas, filtros, orden y paginación. |
+| Listas | `CreateUserListDto`, `UpdateUserListDto`, `AddListItemDto`, `ListQueryDto` | Validan nombre, descripción, visibilidad, UUID del elemento y paginación de listas públicas. |
+| Reseñas | `CreateReviewDto`, `UpdateReviewDto` | Exigen contenido de 10 a 2000 caracteres y permiten un título opcional de hasta 100 caracteres. |
+| Reportes | `CreateReviewReportDto`, `UpdateReviewReportDto`, `ResolveReviewReportDto`, `ReviewReportQueryDto` | Validan motivo, detalles, estado, acción de resolución y paginación. |
+| Actividad | `CreateActivityLogDto`, `UpdateActivityLogDto`, `ActivityQueryDto` | Validan la acción enum, UUID opcional del elemento, metadata como objeto y paginación. |
+
+`LibraryQueryDto`, `ListQueryDto`, `ActivityQueryDto`, `ReviewReportQueryDto` y `UserQueryDto` convierten `page`, `limit` y otros números con `class-transformer`. El límite máximo general es 50. Los filtros booleanos aceptan explícitamente `true` o `false`; cualquier otro texto produce un error de validación en lugar de interpretarse silenciosamente.
+
+### `seed.sql`: datos iniciales de desarrollo
+
+El archivo [db/seed.sql](../db/seed.sql) carga un escenario completo para desarrollar y probar la aplicación. Está organizado por dependencias para que primero existan los usuarios, roles y elementos referenciados por las tablas posteriores:
+
+1. Crea o actualiza los tres roles (`USER`, `MODERATOR`, `ADMIN`) y los 25 permisos.
+2. Asigna permisos a cada rol mediante `role_permissions`.
+3. Crea o actualiza tres usuarios de prueba, asociados a sus roles.
+4. Inserta 10 géneros y 15 elementos multimedia: cinco juegos, cinco películas y cinco libros, con estados aprobados, pendientes y rechazados.
+5. Relaciona el catálogo con géneros en `media_item_genres`.
+6. Agrega entradas de biblioteca, listas personalizadas y sus elementos.
+7. Inserta reseñas, un reporte y registros de actividad para probar moderación, ownership, filtros y estadísticas.
+
+La carga está envuelta en `BEGIN` y `COMMIT`. Si una instrucción falla, `psql` se ejecuta con `ON_ERROR_STOP=1` y la transacción no se confirma, evitando dejar una carga parcial. La mayoría de los bloques usa `ON CONFLICT` para actualizar datos existentes o ignorar relaciones ya creadas, por lo que el seed puede ejecutarse más de una vez.
+
+Las credenciales creadas son exclusivamente de desarrollo:
+
+| Usuario | Contraseña | Rol |
+| --- | --- | --- |
+| `admin@example.com` | `Admin1234` | `ADMIN` |
+| `moderator@example.com` | `Moderator1234` | `MODERATOR` |
+| `user@example.com` | `User12345` | `USER` |
+
+No deben utilizarse estas contraseñas en un entorno compartido o de producción.
+
+### Inserción del seed con PowerShell
+
+El script [scripts/seed-db.ps1](../scripts/seed-db.ps1) encapsula la ejecución de `psql` y evita tener que escribir manualmente la contraseña en la línea de comandos. Lee `DB_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` desde `.env`, localiza automáticamente `db/seed.sql`, configura temporalmente `PGPASSWORD` y restaura su valor anterior al terminar.
+
+Con PostgreSQL activo y las tablas creadas por la aplicación, ejecutar desde la raíz del repositorio:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\seed-db.ps1
+```
+
+También puede ejecutarse desde PowerShell con:
+
+```powershell
+.\scripts\seed-db.ps1
+```
+
+El script requiere que `psql` esté instalado y disponible en el `PATH`. Si no se reconoce el comando, se debe agregar la carpeta `bin` de PostgreSQL al `PATH` o abrir una terminal que ya incluya esa ruta. El archivo `.env` local de referencia usa `localhost`, puerto `5433`, usuario `postgres` y base `mydatabase`; estos valores no se fijan en el script y pueden cambiarse mediante el archivo de configuración.
+
+Una ejecución correcta termina con:
+
+```text
+COMMIT
+Seed insertada correctamente.
+```
+
+Para comprobar el resultado se puede iniciar la API y autenticar uno de los usuarios de prueba:
+
+```powershell
+$body = @{
+    email = "admin@example.com"
+    password = "Admin1234"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:3002/auth/login" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+La respuesta debe incluir `accessToken`. También es válido ejecutar el script por segunda vez: debe finalizar con `COMMIT` nuevamente y no duplicar registros. Nunca debe ejecutarse sobre la base utilizada por los E2E, porque esas pruebas truncan las tablas y requieren una base cuyo nombre contenga `test`.
+
 ### Ejecución y verificación
 
 ```powershell
