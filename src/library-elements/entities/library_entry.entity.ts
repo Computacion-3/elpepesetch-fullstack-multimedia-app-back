@@ -40,21 +40,21 @@ export class LibraryEntry {
     @Column({ type: 'smallint', nullable: true, default: null })
     rating: number | null;
 
-    @Column({ type: 'boolean', default: false })
+    @Column({ name: 'is_favorite', type: 'boolean', default: false })
     isFavorite: boolean;
 
     @Column({ type: 'text', nullable: true, default: null })
     notes: string | null;
 
-    @Column({ type: 'timestamp', nullable: true, default: null })
+    @Column({ name: 'started_at', type: 'timestamp', nullable: true, default: null })
     startedAt: Date | null;
 
-    @Column({ type: 'timestamp', nullable: true, default: null })
+    @Column({ name: 'completed_at', type: 'timestamp', nullable: true, default: null })
     completedAt: Date | null;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ name: 'added_at', type: 'timestamp' })
     addedAt: Date;
 
-    @UpdateDateColumn({ type: 'timestamp' })
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
     updatedAt: Date;
 }
