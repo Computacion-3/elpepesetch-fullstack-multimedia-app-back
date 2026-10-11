@@ -263,7 +263,7 @@ SET name = EXCLUDED.name,
     description = EXCLUDED.description,
     visibility = EXCLUDED.visibility;
 
-INSERT INTO list_items (user_list_id, media_item_id)
+INSERT INTO list_items (list_id, media_item_id)
 SELECT l.id, m.id
 FROM (VALUES
     ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001'),
@@ -314,11 +314,11 @@ SET reason = EXCLUDED.reason,
     status = EXCLUDED.status;
 
 INSERT INTO activity_logs (
-    id, user_id, action, media_item_id, library_entry_id, metadata
+    id, user_id, action, media_item_id, metadata
 )
 SELECT
     v.id::uuid, u.id, v.action::activity_logs_action_enum,
-    NULLIF(v.media_id, '')::uuid, NULLIF(v.entry_id, '')::uuid,
+    NULLIF(v.media_id, '')::uuid,
     v.metadata::jsonb
 FROM (VALUES
     ('60000000-0000-4000-8000-000000000001', 'user@example.com', 'ENTRY_ADDED', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '{"source":"seed"}'),
