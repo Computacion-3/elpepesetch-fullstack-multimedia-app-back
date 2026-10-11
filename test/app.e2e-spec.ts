@@ -111,8 +111,51 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
                 .get('/users')
                 .set('Authorization', `Bearer ${adminToken}`)
                 .expect(200);
-            expect(body.length).toBeGreaterThan(0);
+            expect(body.data.length).toBeGreaterThan(0);
             expect(JSON.stringify(body)).not.toMatch(/password|\$2[aby]\$/i);
+        });
+    });
+
+    describe('GET /users: paginación y filtros', () => {
+        const listUsers = (query: string) =>
+            request(app.getHttpServer()).get(`/users${query}`).set('Authorization', `Bearer ${adminToken}`);
+
+        it('devuelve { data, meta } y respeta page y limit', async () => {
+            const { body } = await listUsers('?page=1&limit=1').expect(200);
+            expect(body.data).toHaveLength(1);
+            expect(body.meta).toMatchObject({ page: 1, limit: 1 });
+            expect(body.meta.total).toBeGreaterThanOrEqual(2);
+            expect(body.meta.totalPages).toBe(body.meta.total);
+
+            const second = await listUsers('?page=2&limit=1').expect(200);
+            expect(second.body.data[0].id).not.toBe(body.data[0].id);
+        });
+
+        it('filtra por rol (sin distinguir mayúsculas)', async () => {
+            const { body } = await listUsers('?role=admin').expect(200);
+            expect(body.data.length).toBeGreaterThan(0);
+            expect(body.data.every((u: { role: { name: string } }) => u.role.name === 'ADMIN')).toBe(true);
+        });
+
+        it('filtra por estado de la cuenta', async () => {
+            const { body } = await listUsers('?isActive=true').expect(200);
+            expect(body.data.every((u: { isActive: boolean }) => u.isActive)).toBe(true);
+        });
+
+        it('busca por texto en username o email', async () => {
+            const { body } = await listUsers('?q=ADMIN@TEST').expect(200);
+            expect(body.data.map((u: { email: string }) => u.email)).toEqual(['admin@test.com']);
+        });
+
+        it('trata % como texto, no como comodín', async () => {
+            const { body } = await listUsers('?q=%25').expect(200);
+            expect(body.meta.total).toBe(0);
+        });
+
+        it('rechaza parámetros inválidos (400)', async () => {
+            await listUsers('?limit=51').expect(400);
+            await listUsers('?page=0').expect(400);
+            await listUsers('?isActive=quizas').expect(400);
         });
     });
 
