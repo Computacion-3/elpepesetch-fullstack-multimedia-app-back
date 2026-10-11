@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { isUniqueViolation } from '../../common/database/pg-errors.js';
@@ -14,6 +14,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { RegisterUserDto } from './dto/register-user.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { UserQueryDto } from './dto/user-query.dto.js';
 
 @Injectable()
 export class UserService {
@@ -42,10 +43,34 @@ export class UserService {
         return await this.saveOrConflict(user);
     }
 
-    async findAll(): Promise<User[]> {
-        return await this.userRepository.find({
+    /** Lista paginada con filtros por rol, estado y texto (username, email o nombre completo). */
+    async findAll(query: UserQueryDto): Promise<PaginatedUsers> {
+        const filters: FindOptionsWhere<User> = {};
+        if (query.role) filters.role = { name: query.role };
+        if (query.isActive !== undefined) filters.isActive = query.isActive;
+
+        const text = query.q?.trim();
+        const like = text ? ILike(`%${escapeLike(text)}%`) : undefined;
+        // Varias condiciones en un arreglo = OR; cada una conserva los filtros de rol y estado
+        const where: FindOptionsWhere<User> | FindOptionsWhere<User>[] = like
+            ? [
+                  { ...filters, username: like },
+                  { ...filters, email: like },
+                  { ...filters, fullName: like },
+              ]
+            : filters;
+
+        const [data, total] = await this.userRepository.findAndCount({
+            where,
             relations: { role: true },
+            order: { id: 'ASC' },
+            skip: (query.page - 1) * query.limit,
+            take: query.limit,
         });
+        return {
+            data,
+            meta: { total, page: query.page, limit: query.limit, totalPages: Math.ceil(total / query.limit) },
+        };
     }
 
     async findOne(id: number, relations: boolean = false): Promise<User> {
@@ -135,4 +160,14 @@ export class UserService {
             throw error;
         }
     }
+}
+
+export interface PaginatedUsers {
+    data: User[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+/** Escapa los comodines de LIKE para que `%` y `_` en la búsqueda se traten como texto. */
+function escapeLike(value: string): string {
+    return value.replace(/[\\%_]/g, '\\$&');
 }

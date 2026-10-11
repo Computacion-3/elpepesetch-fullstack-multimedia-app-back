@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import {
     ApiBadRequestResponse,
     ApiConflictResponse,
@@ -23,8 +23,10 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
+import { PaginatedUsersResponseDto } from './dto/paginated-users-response.dto.js';
+import { UserQueryDto } from './dto/user-query.dto.js';
 import { UserResponseDto } from './dto/user-response.dto.js';
-import { UserService } from './user.service.js';
+import { UserService, type PaginatedUsers } from './user.service.js';
 
 const ID_PARAM = { name: 'id', description: 'Id del usuario', example: 1 };
 
@@ -65,10 +67,14 @@ export class UserController {
     @Get()
     @Permissions(PERMISSIONS.USERS_MANAGE)
     @ApiRequiresPermission(PERMISSIONS.USERS_MANAGE)
-    @ApiOperation({ summary: 'Listar usuarios (administrador)' })
-    @ApiOkResponse({ type: [UserResponseDto] })
-    findAll(): Promise<User[]> {
-        return this.userService.findAll();
+    @ApiOperation({
+        summary: 'Listar usuarios (administrador)',
+        description: 'Lista paginada. Filtros opcionales: role, isActive y q (busca en username, email y nombre).',
+    })
+    @ApiOkResponse({ type: PaginatedUsersResponseDto })
+    @ApiBadRequestResponse({ description: 'Parámetros de consulta inválidos (por ejemplo, limit mayor a 50)' })
+    findAll(@Query() query: UserQueryDto): Promise<PaginatedUsers> {
+        return this.userService.findAll(query);
     }
 
     @Get(':id')
