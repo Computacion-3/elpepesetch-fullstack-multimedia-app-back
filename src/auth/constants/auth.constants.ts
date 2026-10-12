@@ -12,4 +12,8 @@ export const PERMISSIONS = {
     REVIEWS_MODERATE: 'reviews:moderate',
     REPORTS_CREATE: 'reports:create',
     STATS_GLOBAL_READ: 'stats:read_global',
+    GENRES_MANAGE: 'genres:manage',
+    CATALOG_CREATE: 'catalog:create',
+    CATALOG_UPDATE: 'catalog:update',
+    CATALOG_DELETE: 'catalog:delete',
 } as const;

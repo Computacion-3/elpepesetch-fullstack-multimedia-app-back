@@ -49,7 +49,15 @@ $ npm run start:prod
 - **Swagger / OpenAPI:** con la app en marcha, abrir `http://localhost:<PORT>/api/docs` (JSON en `/api/docs-json`). Para probar rutas protegidas: `POST /auth/login`, copiar `accessToken` y pulsar **Authorize**.
 - **Autenticación:** JWT con `jti` único. Todas las rutas exigen `Authorization: Bearer <token>` salvo `POST /auth/register`, `POST /auth/login` y Swagger (decorador `@Public()`). `POST /auth/logout` revoca el token (tabla `revoked_tokens`).
 - **Autorización:** permisos por rol (`roles` → `role_permissions` → `permissions`) con `@Permissions('users:manage')`; los guards globales `JwtAuthGuard` y `PermissionsGuard` los aplican (401 sin/ con token inválido, 403 sin permiso).
-- **Datos iniciales:** con las tablas ya creadas (arrancar la app una vez), `psql ... -f db/seed.sql` crea los roles, permisos y usuarios de prueba (`admin@example.com / Admin1234`, `moderator@example.com / Moderator1234`, `user@example.com / User12345`). Cámbialos antes de desplegar.
+- **Datos iniciales:** con las tablas ya creadas (arrancar la app una vez), `db/seed.sql` crea los roles, permisos y usuarios de prueba (`admin@example.com / Admin1234`, `moderator@example.com / Moderator1234`, `user@example.com / User12345`).
+    - **Windows:** `powershell -ExecutionPolicy Bypass -File .\scripts\seed-db.ps1` (requiere `psql` en el `PATH`).
+    - **Linux / macOS:** ejecutar `psql` dentro del contenedor de PostgreSQL de `docker compose`, que ya tiene el usuario y la base configurados:
+
+      ```bash
+      docker compose up -d db
+      docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/seed.sql
+      ```
+- **Colección de Postman:** `postman/Elpepesetch-Reviews-Reports-Stats.postman_collection.json` recorre todos los módulos de la API; definir la variable `baseUrl` (local o la URL de Render).
 - **Variables obligatorias:** `JWT_SECRET` (la app no arranca sin ella), `JWT_EXPIRES_IN`, `SALT_QTY` y las `POSTGRES_*` (ver `.env.example`).
 - **Tests e2e:** necesitan PostgreSQL y vacían las tablas, por eso solo corren si `POSTGRES_DB` contiene "test".
 
@@ -67,6 +75,12 @@ $ npm run test:cov
 ```
 
 ## Despliegue (Docker + Render)
+
+**API desplegada:** https://elpepesetch-fullstack-multimedia-app-back.onrender.com (Swagger en [`/api/docs`](https://elpepesetch-fullstack-multimedia-app-back.onrender.com/api/docs)).
+
+- La API corre en un *Web Service* de Render construido con el `Dockerfile`, y la base de datos es un PostgreSQL administrado por Render, conectado por la red interna.
+- **La base desplegada ya tiene cargados los datos del seed**: se puede iniciar sesión directamente con los usuarios de prueba (`admin@example.com / Admin1234`, etc.), sin ejecutar nada.
+- Si el servicio está en el plan gratuito de Render, se suspende tras un rato sin tráfico y la primera petición puede tardar cerca de un minuto mientras arranca.
 
 La imagen se construye con el `Dockerfile` de la raíz (multi-stage, Node 24, usuario sin privilegios).
 

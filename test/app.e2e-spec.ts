@@ -284,4 +284,26 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
             await request(app.getHttpServer()).get('/auth/me').set('Authorization', `Bearer ${other}`).expect(200);
         });
     });
+
+    describe('catálogo y géneros', () => {
+        const someId = '00000000-0000-4000-8000-000000000000';
+
+        it('sin token responde 401', () => request(app.getHttpServer()).get('/genre').expect(401));
+
+        it('un USER sin genres:manage no crea géneros (403)', () =>
+            request(app.getHttpServer())
+                .post('/genre')
+                .set('Authorization', `Bearer ${userToken}`)
+                .send({ name: 'Terror' })
+                .expect(403));
+
+        it('un USER sin catalog:delete no elimina elementos del catálogo (403)', () =>
+            request(app.getHttpServer())
+                .delete(`/media-item/${someId}`)
+                .set('Authorization', `Bearer ${userToken}`)
+                .expect(403));
+
+        it('un id que no es uuid responde 400 en lugar de 500', () =>
+            request(app.getHttpServer()).get('/genre/no-es-uuid').set('Authorization', `Bearer ${userToken}`).expect(400));
+    });
 });
