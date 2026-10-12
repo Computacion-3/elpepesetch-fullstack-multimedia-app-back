@@ -241,7 +241,6 @@ npm run test:cov   # unitarias con cobertura
 
 Las pruebas E2E vacían tablas (`TRUNCATE`), por eso solo corren si `POSTGRES_DB` contiene «test»: nunca pueden borrar una base de desarrollo o producción por error.
 
-- [ ] Adjuntar captura de la ejecución de npm run test y npm run test:e2e con todas las pruebas en verde.
 
 ### Documentación Swagger
 
