@@ -73,6 +73,8 @@ export class MediaItemService {
         const [data, total] = await this.repository.findAndCount({
             where,
             relations: { genres: true },
+            // Los géneros se cargan en su propia consulta: así el filtro genreId no recorta la lista de cada elemento
+            relationLoadStrategy: 'query',
             order: { [query.sortBy]: query.order, id: 'ASC' },
             skip: (query.page - 1) * query.limit,
             take: query.limit,

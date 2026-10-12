@@ -93,6 +93,14 @@ describe('MediaItemService', () => {
             expect(result.meta).toEqual({ total: 6, page: 2, limit: 5, totalPages: 2 });
         });
 
+        it('el filtro genreId no recorta los géneros de cada elemento', async () => {
+            await service.findAll(user, Object.assign(new MediaQueryDto(), { genreId: 'g-1' }));
+
+            const options = repo.findAndCount.mock.calls[0][0];
+            expect(options.where[0].genres).toEqual({ id: 'g-1' });
+            expect(options.relationLoadStrategy).toBe('query');
+        });
+
         it('q busca en título o creador dentro de cada condición de visibilidad', async () => {
             await service.findAll(user, Object.assign(new MediaQueryDto(), { q: 'hades' }));
             expect(repo.findAndCount.mock.calls[0][0].where).toHaveLength(4);
