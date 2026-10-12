@@ -669,3 +669,72 @@ Se dispara con `workflow_run` al terminar el CI, y solo despliega si la ejecuci�
 - `concurrency` evita dos despliegues simultáneos, y `workflow_dispatch` permite relanzarlo a mano desde la pestaña Actions.
 
 Render construye la imagen con el `Dockerfile` del proyecto (multi-stage, Node 24, usuario sin privilegios) y reemplaza el servicio cuando la nueva versión arranca.
+
+## Catálogo y géneros
+
+El catálogo (`/media-item`) guarda los juegos, películas y libros que los usuarios agregan a sus bibliotecas y listas, y los géneros (`/genre`) los clasifican. Leer ambos solo exige estar autenticado; modificarlos exige permisos del rol.
+
+| Método y ruta | Permiso | Descripción |
+| --- | --- | --- |
+| `GET /genre`, `GET /genre/:id` | Autenticado | Lista los géneros ordenados por nombre o devuelve uno. |
+| `POST /genre`, `PATCH /genre/:id` | `genres:manage` | Crea o edita un género; un nombre repetido responde 409. |
+| `DELETE /genre/:id` | `genres:manage` | Elimina un género; si está asignado a elementos del catálogo responde 409 en lugar de desvincularlos. |
+| `GET /media-item`, `GET /media-item/:id` | Autenticado | Lista el catálogo ordenado por título, o el detalle de un elemento con sus géneros. |
+| `POST /media-item` | `catalog:create` | Propone un elemento (`title`, `type`, `releaseYear`, `creator` y campos opcionales según el tipo). |
+| `PATCH /media-item/:id` | `catalog:update` | Edita un elemento. |
+| `DELETE /media-item/:id` | `catalog:delete` | Elimina un elemento (solo `ADMIN` tiene este permiso en el seed). |
+
+- Los `:id` son UUID validados con `ParseUUIDPipe`: un id mal formado responde 400 y uno inexistente 404.
+- Un elemento nuevo queda en `approvalStatus = PENDING`. Las bibliotecas, listas y reseñas solo aceptan elementos `APPROVED`; los del seed ya vienen aprobados.
+- Las rutas de moderación del catálogo de la especificación (`/media/pending`, `/media/:id/approval`) no están implementadas en esta entrega.
+- Pruebas: `genre.service.spec.ts` cubre los 409 por nombre repetido y por género en uso, y `catalog-permissions.spec.ts` verifica el permiso exigido por cada ruta. En las E2E, un `USER` recibe 403 al crear géneros o eliminar elementos del catálogo.
+
+## Reseñas, reportes y estadísticas
+
+### Reseñas
+
+| Método y ruta | Permiso | Descripción |
+| --- | --- | --- |
+| `GET /media/:mediaItemId/reviews` | Autenticado | Reseñas visibles del elemento, paginadas y más recientes primero. El autor también ve las suyas ocultas. |
+| `POST /media/:mediaItemId/reviews` | `reviews:create` | Body: `title`?, `content`. |
+| `PATCH /reviews/:id` | `reviews:update` | Edita la reseña propia; el `ADMIN` puede editar cualquiera. |
+| `DELETE /reviews/:id` | `reviews:delete` | Elimina la reseña propia; el `ADMIN` puede eliminar cualquiera. |
+
+- Para reseñar, el elemento debe estar en la biblioteca del usuario con estado `IN_PROGRESS`, `COMPLETED` o `DROPPED`; si no, responde 400.
+- Cada usuario tiene como máximo una reseña por elemento (409 si repite, también ante inserciones concurrentes por el índice único).
+- Crear una reseña queda registrado en el historial de actividad.
+
+### Reportes y moderación
+
+| Método y ruta | Permiso | Descripción |
+| --- | --- | --- |
+| `POST /reviews/:reviewId/report` | `reports:create` | Body: `reason` (`SPOILER`, `OFFENSIVE`, `SPAM`, `OTHER`) y `comment`?. |
+| `GET /reports` | `reviews:moderate` | Reportes paginados, filtrables por `status` (`OPEN`, `RESOLVED`, `DISMISSED`). |
+| `PATCH /reports/:id/resolve` | `reviews:moderate` | Body: `action` (`HIDE` o `DISMISS`) y `reason` (obligatorio para `HIDE`). |
+
+- Un usuario no puede reportar su propia reseña (400) ni reportar dos veces la misma (409).
+- La resolución corre en una transacción: `HIDE` oculta la reseña (`isHidden = true`) y marca el reporte `RESOLVED`; `DISMISS` la deja visible y lo marca `DISMISSED`. Un reporte ya resuelto responde 409.
+- Solo `MODERATOR` y `ADMIN` tienen `reviews:moderate` en el seed.
+
+### Estadísticas
+
+| Método y ruta | Permiso | Respuesta |
+| --- | --- | --- |
+| `GET /stats/me` | Autenticado | Entradas de la biblioteca por tipo y por estado, los 5 géneros más frecuentes, elementos completados por mes en los últimos 12 meses y calificación promedio (un decimal). |
+| `GET /stats/global` | `stats:read_global` | Total de usuarios, elementos del catálogo por tipo, entradas de biblioteca y reseñas. |
+
+Las estadísticas personales se calculan a partir de las entradas de la biblioteca del usuario y sus géneros; las globales usan conteos en paralelo sobre cada tabla.
+
+## Despliegue
+
+- **API:** https://elpepesetch-fullstack-multimedia-app-back.onrender.com (Swagger en `/api/docs`). Corre como *Web Service* de Render construido con el `Dockerfile` del proyecto.
+- **Base de datos:** PostgreSQL administrado por Render, en la misma región que la API y conectado por la red interna (`DB_SSL=false`). TypeORM crea las tablas al primer arranque (`synchronize: true`).
+- **Datos iniciales:** la base desplegada ya tiene cargado `db/seed.sql`, así que se puede iniciar sesión de inmediato con `admin@example.com / Admin1234`, `moderator@example.com / Moderator1234` o `user@example.com / User12345`.
+- **Seed en local:** en Windows con `scripts/seed-db.ps1`; en Linux y macOS, ejecutando `psql` dentro del contenedor de `docker compose`:
+
+```bash
+docker compose up -d db
+docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/seed.sql
+```
+
+- **Entrega continua:** cada push a `master` con las pruebas en verde dispara `cd.yml`, que llama al Deploy Hook de Render (ver la sección de GitHub Actions).
