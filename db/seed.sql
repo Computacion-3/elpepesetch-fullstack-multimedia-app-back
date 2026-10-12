@@ -263,6 +263,28 @@ SET name = EXCLUDED.name,
     description = EXCLUDED.description,
     visibility = EXCLUDED.visibility;
 
+-- Compatibilidad con bases creadas con el nombre anterior de la FK.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'list_items'
+          AND column_name = 'user_list_id'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'list_items'
+          AND column_name = 'list_id'
+    ) THEN
+        ALTER TABLE list_items RENAME COLUMN user_list_id TO list_id;
+    END IF;
+END
+$$;
+
 INSERT INTO list_items (list_id, media_item_id)
 SELECT l.id, m.id
 FROM (VALUES

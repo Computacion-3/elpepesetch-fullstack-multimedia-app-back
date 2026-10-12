@@ -98,12 +98,13 @@ describe('Library, Lists and Activity security (e2e)', () => {
     });
 
     afterAll(async () => {
-        await app.close();
+        if (app) await app.close();
     });
 
     describe('401 authentication', () => {
         const protectedRequests: Array<{ method: 'get' | 'post' | 'patch' | 'delete'; path: string }> = [
             { method: 'get', path: '/library' },
+            { method: 'get', path: '/library/user/1' },
             { method: 'post', path: '/library' },
             { method: 'get', path: '/library/00000000-0000-0000-0000-000000000000' },
             { method: 'patch', path: '/library/00000000-0000-0000-0000-000000000000' },
@@ -128,6 +129,9 @@ describe('Library, Lists and Activity security (e2e)', () => {
     });
 
     describe('ownership', () => {
+        it('rejects another user library lookup without the admin permission', () =>
+            request(app.getHttpServer()).get('/library/user/1').set(auth(userAToken)).expect(403));
+
         it('rejects PATCH by a non-owner with 403', () =>
             request(app.getHttpServer())
                 .patch(`/lists/${userBListId}`)

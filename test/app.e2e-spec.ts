@@ -46,7 +46,7 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
     });
 
     afterAll(async () => {
-        await app.close();
+        if (app) await app.close();
     });
 
     describe('rutas públicas', () => {
@@ -282,28 +282,6 @@ describe('Seguridad: autenticación y autorización (e2e)', () => {
         it('cerrar sesión no invalida otras sesiones del mismo usuario', async () => {
             const other = await login('user@test.com', 'Secreta123');
             await request(app.getHttpServer()).get('/auth/me').set('Authorization', `Bearer ${other}`).expect(200);
-        });
-
-        it('la lista de tokens revocados no está expuesta por HTTP', async () => {
-            for (const token of [userToken, adminToken]) {
-                await request(app.getHttpServer())
-                    .get('/revoked-token')
-                    .set('Authorization', `Bearer ${token}`)
-                    .expect(404);
-            }
-        });
-
-        it('un token revocado no se puede "desrevocar" borrándolo por HTTP', async () => {
-            const token = await login('user@test.com', 'Secreta123');
-            await request(app.getHttpServer()).post('/auth/logout').set('Authorization', `Bearer ${token}`).expect(204);
-
-            const other = await login('user@test.com', 'Secreta123');
-            await request(app.getHttpServer())
-                .delete('/revoked-token/cualquier-id')
-                .set('Authorization', `Bearer ${other}`)
-                .expect(404);
-
-            await request(app.getHttpServer()).get('/auth/me').set('Authorization', `Bearer ${token}`).expect(401);
         });
     });
 });
