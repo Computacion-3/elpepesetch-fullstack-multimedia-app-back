@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "ed625ceb-5b4d-4c50-8e1f-c7b9047fbf7b",
     "name": "Elpepesetch - Full API Test Collection",
-    "description": "Pruebas manuales de todas las rutas HTTP actualmente implementadas en los controladores: autenticación, usuarios, roles, permisos, catálogo, géneros, biblioteca, listas, actividad, reseñas, reportes y estadísticas. Importar en Postman y ejecutar la colección en orden. Requiere la API en ejecución y db/seed.sql cargado; las credenciales de desarrollo están configuradas en las variables de colección. Hay flujos con IDs capturados automáticamente y solicitudes de limpieza al final.\n\nLimitaciones observadas en el proyecto: el seed se carga ejecutando db/seed.sql (no existe POST /seed ni npm run seed); no hay rutas HTTP para aprobar o rechazar propuestas del catálogo; y el servicio actual de POST /media-item no asigna el campo createdBy requerido por la entidad, por lo que su prueba puede fallar. La colección incluye la ruta para mostrar el resultado y omite las solicitudes dependientes si no se obtiene un ID.",
+    "description": "Pruebas manuales de todas las rutas HTTP actualmente implementadas en los controladores: autenticación, usuarios, roles, permisos, catálogo, géneros, biblioteca, listas, actividad, reseñas, reportes y estadísticas. Importar en Postman y ejecutar la colección en orden. Requiere la API en ejecución y db/seed.sql cargado; las credenciales de desarrollo están configuradas en las variables de colección. Hay flujos con IDs capturados automáticamente y solicitudes de limpieza al final.\n\nLimitaciones observadas en el proyecto: el seed se carga ejecutando db/seed.sql (no existe POST /seed ni npm run seed); no hay rutas HTTP para aprobar o rechazar propuestas del catálogo; y el servicio actual de POST /media no asigna el campo createdBy requerido por la entidad, por lo que su prueba puede fallar. La colección incluye la ruta para mostrar el resultado y omite las solicitudes dependientes si no se obtiene un ID.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -2351,19 +2351,14 @@
     },
     {
       "name": "07 - Catálogo y géneros",
-      "description": "Consultas y operaciones CRUD de los medios y géneros actualmente expuestos por la API.",
+      "description": "Géneros y catálogo según la especificación: permisos por rol, propuesta PENDING, moderación (pending/approval), edición del creador solo mientras está pendiente y limpieza de los datos temporales.",
       "item": [
         {
-          "name": "GET /media-item - listar medios",
+          "name": "GET /genres - listar géneros",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/media-item",
+            "header": [],
+            "url": "{{baseUrl}}/genres",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2373,15 +2368,6 @@
                   "type": "string"
                 }
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
           },
           "event": [
@@ -2391,58 +2377,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('El catálogo devuelve una lista', function () { pm.expect(pm.response.json()).to.be.an('array'); });"
+                  "pm.test('Lista de géneros', function () { pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty; });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET /media-item/:id - detalle de Hades",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/media-item/{{mediaHadesId}}",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{userToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('El elemento consultado es Hades', function () { pm.expect(pm.response.json().title).to.eql('Hades'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /media-item - crear medio temporal",
+          "name": "POST /genres - USER sin genres:manage recibe 403",
           "request": {
             "method": "POST",
             "header": [
@@ -2451,7 +2393,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/media-item",
+            "url": "{{baseUrl}}/genres",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2464,7 +2406,283 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "",
+              "raw": "{\n  \"name\": \"No permitido\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /genres - crear género temporal (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/genres",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testGenreName}}\",\n  \"description\": \"Género temporal de Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('testGenreName', 'Postman genre ' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "const body = pm.response.json(); pm.collectionVariables.set('testGenreId', body.id);",
+                  "pm.test('El género tiene id', function () { pm.expect(body.id).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /genres - nombre repetido responde 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/genres",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testGenreName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /genres/:id - consultar género temporal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/genres/{{testGenreId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /genres/:id - editar género temporal (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/genres/{{testGenreId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Género actualizado desde Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Descripción actualizada', function () { pm.expect(pm.response.json().description).to.eql('Género actualizado desde Postman'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /media - catálogo paginado con filtros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/media?type=GAME&sortBy=title&order=ASC&page=1&limit=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Respuesta { data, meta }', function () { pm.expect(body.data).to.be.an('array'); pm.expect(body.meta).to.include.keys('total','page','limit','totalPages'); });",
+                  "pm.test('Solo juegos aprobados', function () { body.data.forEach(m => { pm.expect(m.type).to.eql('GAME'); }); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /media/:id - detalle de Hades con géneros y promedio",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/media/{{mediaHadesId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Es Hades, con géneros y calificaciones', function () { pm.expect(body.title).to.eql('Hades'); pm.expect(body.genres).to.be.an('array'); pm.expect(body).to.have.property('averageRating'); pm.expect(body).to.have.property('ratingsCount'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /media - USER propone un elemento (queda PENDING)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{testMediaTitle}}\",\n  \"type\": \"BOOK\",\n  \"description\": \"Propuesta desde Postman\",\n  \"releaseYear\": 2024,\n  \"creator\": \"Autor de prueba\",\n  \"pages\": 320,\n  \"genreIds\": [\n    \"{{testGenreId}}\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2488,217 +2706,15 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
-                  "const body = pm.response.json(); if (body.id) pm.collectionVariables.set('testMediaId', body.id);",
-                  "pm.test('La API creó el medio temporal', function () { pm.expect(body.id).to.be.a('string'); });"
-                ]
-              }
-            }
-          ],
-          "description": "Prueba la creación del catálogo. El código actual no asigna createdBy aunque la entidad lo exige; si la base de datos rechaza el POST, las pruebas dependientes se omiten y el fallo queda visible."
-        },
-        {
-          "name": "GET /media-item/:id - consultar medio temporal",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/media-item/{{testMediaId}}",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{userToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.collectionVariables.get('testMediaId')) pm.execution.skipRequest();"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                  "const body = pm.response.json(); pm.collectionVariables.set('testMediaId', body.id);",
+                  "pm.test('Queda PENDING', function () { pm.expect(body.approvalStatus).to.eql('PENDING'); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "PATCH /media-item/:id - editar medio temporal",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/media-item/{{testMediaId}}",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{userToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.collectionVariables.get('testMediaId')) pm.execution.skipRequest();"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('La descripción del medio se actualizó', function () { pm.expect(pm.response.json().description).to.eql('Descripción editada desde Postman'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "DELETE /media-item/:id - limpiar medio temporal",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/media-item/{{testMediaId}}",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{userToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.collectionVariables.get('testMediaId')) pm.execution.skipRequest();"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET /genre - listar géneros",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/genre",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{adminToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('La respuesta es una lista de géneros', function () { pm.expect(pm.response.json()).to.be.an('array'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /genre - crear género temporal",
+          "name": "POST /media - sin géneros responde 400",
           "request": {
             "method": "POST",
             "header": [
@@ -2707,20 +2723,20 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/genre",
+            "url": "{{baseUrl}}/media",
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{adminToken}}",
+                  "value": "{{userToken}}",
                   "type": "string"
                 }
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "",
+              "raw": "{\n  \"title\": \"Sin géneros\",\n  \"type\": \"GAME\",\n  \"releaseYear\": 2024,\n  \"creator\": \"X\",\n  \"genreIds\": []\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2730,38 +2746,333 @@
           },
           "event": [
             {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set('testGenreName', 'Postman ' + Date.now());"
-                ]
-              }
-            },
-            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
-                  "const body = pm.response.json(); if (body.id) pm.collectionVariables.set('testGenreId', body.id);",
-                  "pm.test('El género temporal tiene id', function () { pm.expect(body.id).to.be.a('string'); });"
+                  "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET /genre/:id - consultar género temporal",
+          "name": "GET /media/:id - el creador ve su propuesta pendiente",
           "request": {
             "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id - el creador edita mientras está PENDING",
+          "request": {
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/genre/{{testGenreId}}",
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Descripción editada desde Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Descripción actualizada', function () { pm.expect(pm.response.json().description).to.eql('Descripción editada desde Postman'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /media/pending - USER sin catalog:moderate recibe 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/media/pending",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /media/pending - el moderador ve la propuesta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/media/pending?page=1&limit=50",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "const ids = pm.response.json().data.map(m => m.id);",
+                  "pm.test('Incluye la propuesta', function () { pm.expect(ids).to.include(pm.collectionVariables.get('testMediaId')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id/approval - rechazar sin motivo responde 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{testMediaId}}/approval",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalStatus\": \"REJECTED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id/approval - el moderador aprueba",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{testMediaId}}/approval",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalStatus\": \"APPROVED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Queda APPROVED', function () { pm.expect(pm.response.json().approvalStatus).to.eql('APPROVED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id/approval - revisar dos veces responde 409",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{testMediaId}}/approval",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalStatus\": \"REJECTED\",\n  \"rejectionReason\": \"Duplicado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id - el creador ya no edita un aprobado (403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"No permitido\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id - el administrador edita siempre",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2774,7 +3085,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "",
+              "raw": "{\n  \"description\": \"Editado por el administrador\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2795,16 +3106,11 @@
           ]
         },
         {
-          "name": "PATCH /genre/:id - editar género temporal",
+          "name": "DELETE /genres/:id - género en uso responde 409",
           "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/genre/{{testGenreId}}",
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/genres/{{testGenreId}}",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2814,10 +3120,146 @@
                   "type": "string"
                 }
               ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /media/:id - USER sin catalog:delete recibe 403",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /media/:id - el administrador elimina el elemento",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /media - nueva propuesta para rechazar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
-              "raw": "",
+              "raw": "{\n  \"title\": \"{{testMediaTitle}} rechazo\",\n  \"type\": \"MOVIE\",\n  \"releaseYear\": 2023,\n  \"creator\": \"Directora de prueba\",\n  \"durationMinutes\": 95,\n  \"genreIds\": [\n    \"{{testGenreId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('testMediaId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /media/:id/approval - el moderador rechaza con motivo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{testMediaId}}/approval",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approvalStatus\": \"REJECTED\",\n  \"rejectionReason\": \"Información incompleta\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2832,23 +3274,19 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('La descripción del género quedó actualizada', function () { pm.expect(pm.response.json().description).to.eql('Género actualizado desde Postman'); });"
+                  "const body = pm.response.json();",
+                  "pm.test('Queda REJECTED con motivo', function () { pm.expect(body.approvalStatus).to.eql('REJECTED'); pm.expect(body.rejectionReason).to.eql('Información incompleta'); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "DELETE /genre/:id - limpiar género temporal",
+          "name": "DELETE /media/:id - limpiar el rechazado",
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/genre/{{testGenreId}}",
+            "header": [],
+            "url": "{{baseUrl}}/media/{{testMediaId}}",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2858,15 +3296,35 @@
                   "type": "string"
                 }
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
               }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /genres/:id - limpiar género temporal",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/genres/{{testGenreId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [

@@ -672,22 +672,25 @@ Render construye la imagen con el `Dockerfile` del proyecto (multi-stage, Node 2
 
 ## Catálogo y géneros
 
-El catálogo (`/media-item`) guarda los juegos, películas y libros que los usuarios agregan a sus bibliotecas y listas, y los géneros (`/genre`) los clasifican. Leer ambos solo exige estar autenticado; modificarlos exige permisos del rol.
+El catálogo (`/media`) guarda los juegos, películas y libros que los usuarios agregan a sus bibliotecas y listas, y los géneros (`/genres`) los clasifican. Leer exige estar autenticado; modificar exige permisos del rol.
 
 | Método y ruta | Permiso | Descripción |
 | --- | --- | --- |
-| `GET /genre`, `GET /genre/:id` | Autenticado | Lista los géneros ordenados por nombre o devuelve uno. |
-| `POST /genre`, `PATCH /genre/:id` | `genres:manage` | Crea o edita un género; un nombre repetido responde 409. |
-| `DELETE /genre/:id` | `genres:manage` | Elimina un género; si está asignado a elementos del catálogo responde 409 en lugar de desvincularlos. |
-| `GET /media-item`, `GET /media-item/:id` | Autenticado | Lista el catálogo ordenado por título, o el detalle de un elemento con sus géneros. |
-| `POST /media-item` | `catalog:create` | Propone un elemento (`title`, `type`, `releaseYear`, `creator` y campos opcionales según el tipo). |
-| `PATCH /media-item/:id` | `catalog:update` | Edita un elemento. |
-| `DELETE /media-item/:id` | `catalog:delete` | Elimina un elemento (solo `ADMIN` tiene este permiso en el seed). |
+| `GET /genres`, `GET /genres/:id` | Autenticado | Lista los géneros ordenados por nombre o devuelve uno. |
+| `POST /genres`, `PATCH /genres/:id` | `genres:manage` | Crea o edita un género; un nombre repetido responde 409. |
+| `DELETE /genres/:id` | `genres:manage` | Elimina un género; si está asignado a elementos del catálogo responde 409. |
+| `GET /media` | Autenticado | Elementos aprobados más los pendientes propuestos por quien consulta. Filtros `q` (título o creador), `type`, `genreId`, `year`; orden `sortBy` (`title`, `releaseYear`, `averageRating`) y `order`; paginación `page`/`limit`. Responde `{ data, meta }`. |
+| `GET /media/:id` | Autenticado | Detalle con géneros, `averageRating` y `ratingsCount`. Un pendiente ajeno responde 404 (lo ven su creador y los moderadores). |
+| `POST /media` | `catalog:create` | Propone un elemento con al menos un género (`genreIds`). Queda `PENDING`, o `APPROVED` si lo crea un administrador. |
+| `PATCH /media/:id` | `catalog:update` | El creador edita mientras esté `PENDING` (403 después); el administrador edita siempre. |
+| `DELETE /media/:id` | `catalog:delete` | Elimina un elemento (solo `ADMIN` tiene este permiso). |
+| `GET /media/pending` | `catalog:moderate` | Elementos pendientes, los más antiguos primero, paginados. |
+| `PATCH /media/:id/approval` | `catalog:moderate` | Body: `approvalStatus` (`APPROVED` o `REJECTED`) y `rejectionReason`, obligatorio al rechazar (400 sin él). Un elemento ya revisado responde 409. |
 
+- Validaciones: `releaseYear` entre 1900 y el año actual + 5; géneros inexistentes responden 400; la combinación (`title`, `type`, `releaseYear`) es única (409).
 - Los `:id` son UUID validados con `ParseUUIDPipe`: un id mal formado responde 400 y uno inexistente 404.
-- Un elemento nuevo queda en `approvalStatus = PENDING`. Las bibliotecas, listas y reseñas solo aceptan elementos `APPROVED`; los del seed ya vienen aprobados.
-- Las rutas de moderación del catálogo de la especificación (`/media/pending`, `/media/:id/approval`) no están implementadas en esta entrega.
-- Pruebas: `genre.service.spec.ts` cubre los 409 por nombre repetido y por género en uso, y `catalog-permissions.spec.ts` verifica el permiso exigido por cada ruta. En las E2E, un `USER` recibe 403 al crear géneros o eliminar elementos del catálogo.
+- Las bibliotecas aceptan elementos aprobados o propuestos por el mismo usuario; las listas y reseñas, solo aprobados. Un elemento rechazado sale del catálogo, pero las entradas de biblioteca ya creadas se conservan.
+- Pruebas: `media-item.service.spec.ts` cubre la propuesta, la visibilidad, la edición del creador, la moderación y los errores; `genre.service.spec.ts` los 409 de géneros; `catalog-permissions.spec.ts` el permiso de cada ruta. En las E2E, un `USER` recibe 403 al crear géneros o eliminar elementos. La colección de Postman recorre el flujo completo: propuesta, revisión del moderador, aprobación, rechazo con motivo y limpieza.
 
 ## Reseñas, reportes y estadísticas
 

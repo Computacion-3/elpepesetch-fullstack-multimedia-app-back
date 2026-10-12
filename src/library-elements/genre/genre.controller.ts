@@ -18,7 +18,7 @@ import { UpdateGenreDto } from './dto/update-genre.dto.js';
 import { GenreService } from './genre.service.js';
 
 @ApiTags('Genres')
-@Controller('genre')
+@Controller('genres')
 export class GenreController {
     constructor(private readonly genreService: GenreService) {}
 

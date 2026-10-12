@@ -1,5 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Max, MaxLength, Min } from 'class-validator';
+import {
+    ArrayMinSize,
+    ArrayUnique,
+    IsArray,
+    IsEnum,
+    IsInt,
+    IsNotEmpty,
+    IsOptional,
+    IsString,
+    IsUrl,
+    IsUUID,
+    Max,
+    MaxLength,
+    Min,
+} from 'class-validator';
 import { MediaType } from '../../enums/library.enums.js';
 
 export class CreateMediaItemDto {
@@ -13,5 +27,10 @@ export class CreateMediaItemDto {
     @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) durationMinutes?: number;
     @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) pages?: number;
     @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) isbn?: string;
-    @ApiPropertyOptional({ type: [String] }) @IsOptional() genreIds?: string[];
+    @ApiProperty({ type: [String], format: 'uuid', description: 'Al menos un género', example: ['<uuid del género>'] })
+    @IsArray()
+    @ArrayMinSize(1, { message: 'Debe indicar al menos un género' })
+    @ArrayUnique()
+    @IsUUID('all', { each: true })
+    genreIds: string[];
 }
