@@ -16,4 +16,5 @@ export const PERMISSIONS = {
     CATALOG_CREATE: 'catalog:create',
     CATALOG_UPDATE: 'catalog:update',
     CATALOG_DELETE: 'catalog:delete',
+    CATALOG_MODERATE: 'catalog:moderate',
 } as const;

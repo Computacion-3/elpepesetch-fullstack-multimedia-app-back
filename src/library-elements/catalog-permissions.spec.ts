@@ -24,6 +24,8 @@ describe('Permisos del catálogo y los géneros', () => {
         ['create', ['catalog:create']],
         ['update', ['catalog:update']],
         ['remove', ['catalog:delete']],
+        ['findPending', ['catalog:moderate']],
+        ['setApproval', ['catalog:moderate']],
         ['findAll', undefined],
         ['findOne', undefined],
     ])('MediaItemController.%s exige %j', (handler, permissions) => {
