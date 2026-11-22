@@ -1,5 +1,7 @@
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ClassSerializerInterceptor, Module, ValidationPipe } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { GraphQLModule } from '@nestjs/graphql';
 import { createObserveModule } from '@nestjs/observe';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -43,6 +45,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
                 synchronize: true,
             }),
         }),
+        // GraphQL en /graphql (esquema code-first en memoria). Los guards globales también lo protegen.
+        GraphQLModule.forRoot<ApolloDriverConfig>({ driver: ApolloDriver, autoSchemaFile: true, sortSchema: true }),
         LoggerModule,
         AuthModule,
         LibraryElementsModule,
