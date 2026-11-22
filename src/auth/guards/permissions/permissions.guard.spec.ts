@@ -25,6 +25,7 @@ describe('PermissionsGuard', () => {
         ({
             getHandler: () => handler,
             getClass: () => Handlers,
+            getType: () => 'http',
             switchToHttp: () => ({ getRequest: () => ({ user }) }),
         }) as unknown as ExecutionContext;
 
