@@ -1,5 +1,6 @@
 import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { WsException } from '@nestjs/websockets';
 
 import { AppLogger } from '../../../common/logger/logger.service.js';
 import { Permissions } from '../../decorators/permissions.decorator.js';
@@ -56,5 +57,31 @@ describe('PermissionsGuard', () => {
 
     it('responde 401 si no hay usuario autenticado en la petición', () => {
         expect(() => guard.canActivate(contextFor(handlers.protected))).toThrow(UnauthorizedException);
+    });
+
+    describe('WebSockets', () => {
+        const wsContextFor = (handler: () => void, user?: Partial<AuthenticatedUser>) =>
+            ({
+                getHandler: () => handler,
+                getClass: () => Handlers,
+                getType: () => 'ws',
+                switchToWs: () => ({ getClient: () => ({ data: { user } }) }),
+            }) as unknown as ExecutionContext;
+
+        it('lee los permisos del usuario del socket', () => {
+            expect(guard.canActivate(wsContextFor(handlers.protected, { id: 1, permissions: ['users:manage'] }))).toBe(
+                true,
+            );
+        });
+
+        it('sin el permiso responde con WsException (no con un 403 HTTP)', () => {
+            expect(() => guard.canActivate(wsContextFor(handlers.protected, { id: 1, permissions: [] }))).toThrow(
+                WsException,
+            );
+        });
+
+        it('sin usuario en el socket responde con WsException', () => {
+            expect(() => guard.canActivate(wsContextFor(handlers.protected))).toThrow(WsException);
+        });
     });
 });

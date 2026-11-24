@@ -10,6 +10,7 @@ describe('JwtAuthGuard', () => {
     const context = {
         getHandler: () => handler,
         getClass: () => TestController,
+        getType: () => 'http',
     } as unknown as ExecutionContext;
 
     const guardWith = (isPublic: boolean | undefined) => {
@@ -25,6 +26,16 @@ describe('JwtAuthGuard', () => {
 
         expect(guard.canActivate(context)).toBe(true);
         expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [handler, TestController]);
+        expect(parent).not.toHaveBeenCalled();
+    });
+
+    it('no aplica a mensajes de WebSocket (ya se autenticaron en el handshake)', () => {
+        const parent = vi.spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate');
+        const { guard, reflector } = guardWith(undefined);
+        const wsContext = { ...context, getType: () => 'ws' } as unknown as ExecutionContext;
+
+        expect(guard.canActivate(wsContext)).toBe(true);
+        expect(reflector.getAllAndOverride).not.toHaveBeenCalled();
         expect(parent).not.toHaveBeenCalled();
     });
 
