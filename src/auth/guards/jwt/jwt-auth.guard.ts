@@ -5,7 +5,11 @@ import { AuthGuard } from '@nestjs/passport';
 import { getRequest } from '../../../common/utils/get-request.js';
 import { IS_PUBLIC_KEY } from '../../decorators/public.decorator.js';
 
-/** Guard global: exige un JWT válido salvo en las rutas marcadas con @Public(). */
+/**
+ * Guard global: exige un JWT válido salvo en las rutas marcadas con @Public().
+ * En WebSockets no aplica: la conexión ya se autenticó en el handshake (createSocketAuthMiddleware)
+ * y un mensaje no trae headers HTTP que Passport pueda leer.
+ */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
     constructor(private readonly reflector: Reflector) {
@@ -18,6 +22,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     canActivate(context: ExecutionContext) {
+        if (context.getType() === 'ws') {
+            return true;
+        }
         const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
             context.getHandler(),
             context.getClass(),
