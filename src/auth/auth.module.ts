@@ -37,5 +37,7 @@ import { AuthResolver } from './graphql/auth.resolver.js';
     ],
     providers: [AuthService, JwtStrategy, AuthResolver],
     controllers: [AuthController],
+    // El gateway de WebSockets importa AuthModule para validar el ticket del handshake
+    exports: [AuthService],
 })
 export class AuthModule {}

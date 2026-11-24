@@ -51,3 +51,9 @@ export class LoginResultType {
     @Field() tokenType!: string;
     @Field(() => LoginUserType) user!: LoginUserType;
 }
+
+@ObjectType('SocketToken', { description: 'Ticket de un solo uso para el handshake de Socket.IO' })
+export class SocketTokenType {
+    @Field() token!: string;
+    @Field(() => Int, { description: 'Segundos de vigencia' }) expiresIn!: number;
+}

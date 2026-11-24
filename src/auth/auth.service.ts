@@ -6,13 +6,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
-import { DEFAULT_ROLE_NAME } from './constants/auth.constants.js';
+import { isUniqueViolation } from '../common/database/pg-errors.js';
+import { UserNotFoundException } from '../common/exceptions/index.js';
+
+import { DEFAULT_ROLE_NAME, SOCKET_TOKEN } from './constants/auth.constants.js';
 import { LoginResponseDto } from './dto/login-response.dto.js';
+import { SocketTokenResponseDto } from './dto/socket-token-response.dto.js';
 import { UserLoginDto } from './dto/user-login.dto.js';
 import { RevokedToken } from './entities/revoked-token.entity.js';
 import { User } from './entities/user.entity.js';
 import { AuthenticatedUser } from './interfaces/authenticated-user.interface.js';
 import { JwtPayload } from './interfaces/jwt-payload.interface.js';
+import { SocketUser } from './interfaces/socket-user.interface.js';
 import { RoleService } from './role/role.service.js';
 import { RegisterUserDto } from './user/dto/register-user.dto.js';
 import { UserService } from './user/user.service.js';
@@ -90,5 +95,80 @@ export class AuthService {
 
     async me(user: AuthenticatedUser): Promise<User> {
         return await this.usersService.findOne(user.id, true);
+    }
+
+    /**
+     * Ticket para el handshake del WebSocket: JWT corto (60 s), de un solo uso y con audiencia 'socket'.
+     * Así el navegador nunca recibe el token de sesión (que vive en una cookie httpOnly del frontend).
+     */
+    issueSocketToken(user: AuthenticatedUser): SocketTokenResponseDto {
+        const payload: Pick<JwtPayload, 'sub' | 'email' | 'typ'> = {
+            sub: String(user.id),
+            email: user.email,
+            typ: SOCKET_TOKEN.TYPE,
+        };
+        return {
+            token: this.jwtService.sign(payload, {
+                jwtid: randomUUID(),
+                audience: SOCKET_TOKEN.AUDIENCE,
+                expiresIn: SOCKET_TOKEN.TTL_SECONDS,
+            }),
+            expiresIn: SOCKET_TOKEN.TTL_SECONDS,
+        };
+    }
+
+    /**
+     * Valida el ticket de un handshake de Socket.IO y lo consume (no se puede reutilizar).
+     * Devuelve el usuario con rol y permisos leídos de la BD. Lanza 401 si algo falla.
+     */
+    async verifySocketToken(token: string | undefined): Promise<SocketUser> {
+        if (!token) {
+            throw new UnauthorizedException('Falta el ticket del socket');
+        }
+
+        let payload: JwtPayload;
+        try {
+            payload = await this.jwtService.verifyAsync<JwtPayload>(token, { audience: SOCKET_TOKEN.AUDIENCE });
+        } catch {
+            throw new UnauthorizedException('El ticket del socket es inválido o expiró');
+        }
+        if (payload.typ !== SOCKET_TOKEN.TYPE || !payload.jti) {
+            throw new UnauthorizedException('El ticket del socket es inválido o expiró');
+        }
+
+        await this.consumeSocketToken(payload);
+
+        const user = await this.usersService.findOne(Number(payload.sub), true).catch((error: unknown) => {
+            if (error instanceof UserNotFoundException) {
+                throw new UnauthorizedException('El ticket no corresponde a un usuario activo');
+            }
+            throw error;
+        });
+        if (!user.isActive) {
+            throw new UnauthorizedException('La cuenta está desactivada');
+        }
+
+        return {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            role: user.role.name,
+            permissions: user.role.rolePermissions?.map((rp) => rp.permission.name) ?? [],
+        };
+    }
+
+    /** Un solo uso: el jti se guarda en revoked_tokens; si ya estaba (índice único), el ticket se reutilizó. */
+    private async consumeSocketToken(payload: JwtPayload): Promise<void> {
+        try {
+            await this.revokedTokenRepository.insert({
+                jti: payload.jti,
+                expiresAt: new Date((payload.exp ?? 0) * 1000),
+            });
+        } catch (error) {
+            if (isUniqueViolation(error)) {
+                throw new UnauthorizedException('El ticket del socket ya fue usado');
+            }
+            throw error;
+        }
     }
 }

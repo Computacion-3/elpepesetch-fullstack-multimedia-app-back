@@ -6,7 +6,7 @@ import { Public } from '../decorators/public.decorator.js';
 import { User } from '../entities/user.entity.js';
 import type { AuthenticatedUser } from '../interfaces/authenticated-user.interface.js';
 import { LoginInput, RegisterInput } from './auth.inputs.js';
-import { LoginResultType, UserType } from './auth.types.js';
+import { LoginResultType, SocketTokenType, UserType } from './auth.types.js';
 
 /** Autenticación por GraphQL: delega en AuthService, igual que AuthController en REST. */
 @Resolver()
@@ -29,6 +29,11 @@ export class AuthResolver {
     async logout(@CurrentUser() user: AuthenticatedUser): Promise<boolean> {
         await this.authService.logout(user);
         return true;
+    }
+
+    @Mutation(() => SocketTokenType, { description: 'Ticket de un solo uso (60 s) para el handshake de Socket.IO' })
+    socketToken(@CurrentUser() user: AuthenticatedUser): SocketTokenType {
+        return this.authService.issueSocketToken(user);
     }
 
     @Query(() => UserType, { description: 'Perfil del usuario autenticado, con su rol y permisos' })

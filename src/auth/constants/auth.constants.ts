@@ -18,3 +18,16 @@ export const PERMISSIONS = {
     CATALOG_DELETE: 'catalog:delete',
     CATALOG_MODERATE: 'catalog:moderate',
 } as const;
+
+/**
+ * Ticket del WebSocket: JWT corto y de un solo uso que solo sirve para el handshake de Socket.IO.
+ * El frontend lo pide con el token de sesión (que vive en una cookie httpOnly y nunca llega al navegador).
+ */
+export const SOCKET_TOKEN = {
+    /** Valor de `typ` en el payload; JwtStrategy rechaza estos tokens en HTTP. */
+    TYPE: 'socket',
+    /** Valor de `aud`; verifySocketToken exige esta audiencia. */
+    AUDIENCE: 'socket',
+    /** Vigencia en segundos: basta para abrir la conexión. */
+    TTL_SECONDS: 60,
+} as const;
