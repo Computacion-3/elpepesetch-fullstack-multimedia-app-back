@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/guards/jwt/jwt-auth.guard.js';
 import { PermissionsGuard } from './auth/guards/permissions/permissions.guard.js';
 import { LoggerModule } from './common/logger/logger.module.js';
+import { HealthController } from './health/health.controller.js';
 import { LibraryElementsModule } from './library-elements/library-elements.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -51,7 +52,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         AuthModule,
         LibraryElementsModule,
     ],
-    controllers: [AppController],
+    controllers: [AppController, HealthController],
     providers: [
         AppService,
         // Orden de ejecución: 1) autenticación (JWT) -> 2) autorización (permisos del rol)

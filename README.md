@@ -173,7 +173,7 @@ GitHub Actions (`.github/workflows/ci.yml`) ejecuta lint, pruebas unitarias y E2
 - La API corre en un *Web Service* de Render construido con el `Dockerfile` (multi-stage, Node 24, usuario sin privilegios), y la base de datos es un PostgreSQL administrado por Render, conectado por la red interna.
 - **La base desplegada ya tiene cargados los datos del seed**, así que se puede iniciar sesión directamente con los usuarios de prueba.
 - Si el servicio está en el plan gratuito de Render, se suspende tras un rato sin tráfico y la primera petición puede tardar cerca de un minuto mientras arranca.
-- **Entrega continua:** `.github/workflows/cd.yml` se ejecuta al terminar el CI y, solo si las pruebas pasaron en un push a `master`, llama al *Deploy Hook* de Render guardado como secreto `RENDER_DEPLOY_HOOK_URL`.
+- **Salud:** `GET /health` (público) responde `{ status, database, commit, uptimeSeconds }`, con 503 si la base de datos no contesta. `commit` es el `RENDER_GIT_COMMIT` del despliegue.
 
 Para desplegar una instancia propia:
 
@@ -189,3 +189,31 @@ docker run --env-file .env -e DB_HOST=host.docker.internal -p 3002:3002 elpepese
 ```
 
 En Linux, agregar `--add-host=host.docker.internal:host-gateway`.
+
+### CI/CD (GitHub Actions)
+
+| Workflow | Cuándo | Qué hace |
+|---|---|---|
+| `ci.yml` | Push y PR a `master` | Lint, compilación, pruebas unitarias y e2e (con PostgreSQL). En paralelo construye la imagen Docker para detectar antes que Render un `Dockerfile` roto |
+| `cd.yml` | Al terminar el CI en verde de un push a `master`, o a mano | Ejecuta `scripts/cd/render-deploy.mjs` |
+
+`render-deploy.mjs` no se limita a llamar al hook:
+
+1. Despliega **el commit exacto que pasó el CI** (`?ref=<sha>` en el Deploy Hook).
+2. Sigue el despliegue con la API de Render hasta `live`. Si termina en `build_failed`, `update_failed`, etc., el job falla, y la versión anterior sigue atendiendo porque Render no cambia el tráfico si el despliegue falla.
+3. Corre *smoke tests* contra producción: `/health` sano **y con el commit esperado**, Swagger, login con credenciales falsas (401) y GraphQL.
+4. Si los smoke tests fallan, hace **rollback** al deploy que estaba vivo antes y marca el job en rojo.
+5. Deja un resumen en la ejecución (commit, deploy, estado, smoke tests y rollback) y enlaza la URL en el environment `production`.
+
+Configuración en GitHub (*Settings → Secrets and variables → Actions*):
+
+| Nombre | Tipo | Valor |
+|---|---|---|
+| `RENDER_DEPLOY_HOOK_URL` | Secret | Deploy Hook del servicio (*Settings* del servicio en Render) |
+| `RENDER_API_KEY` | Secret | API key de Render (*Account Settings → API Keys*). Sin ella no hay seguimiento por API ni rollback: solo se verifica `/health` |
+| `RENDER_SERVICE_URL` | Variable | URL pública, p. ej. `https://<servicio>.onrender.com` |
+
+En Render: **Health Check Path = `/health`** (Render no enruta tráfico a la instancia nueva hasta que responda 200) y **Auto-Deploy = Off** (si no, Render despliega cada push sin esperar al CI; desplegar con `?ref=` también lo desactiva).
+
+Para correrlo desde tu equipo: `RENDER_DEPLOY_HOOK_URL=... RENDER_API_KEY=... RENDER_SERVICE_URL=... DEPLOY_COMMIT=<sha> node scripts/cd/render-deploy.mjs`.
+
