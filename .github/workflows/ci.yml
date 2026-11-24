@@ -6,9 +6,18 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# Un push nuevo a un PR cancela la ejecución anterior; en master se completan todas (el CD depende de ellas).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -51,8 +60,31 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Compilar
+        run: npm run build
+
       - name: Ejecutar pruebas unitarias
         run: npm run test
 
       - name: Ejecutar pruebas E2E
         run: npm run test:e2e
+
+  # Render construye con el Dockerfile: si la imagen no compila, mejor enterarse aquí que en producción.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir la imagen (sin publicar)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: elpepesetch-back:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,18 +1,22 @@
 name: CD Render
 
-# Se ejecuta cuando termina el workflow de CI. Solo despliega si las pruebas
-# pasaron en un push a master (no en pull requests).
+# Se ejecuta cuando termina el CI. Solo despliega si las pruebas pasaron en un push a master.
+# No basta con disparar el Deploy Hook: scripts/cd/render-deploy.mjs despliega el commit exacto que pasó
+# el CI, espera a que Render termine, corre smoke tests contra producción y, si fallan, hace rollback.
 on:
   workflow_run:
     workflows: [ "CI NestJS Tests" ]
     types: [ completed ]
     branches: [ "master" ]
-  # Permite relanzar el despliegue a mano desde la pestaña Actions
+  # Relanzar a mano desde la pestaña Actions (despliega el último commit de la rama elegida)
   workflow_dispatch:
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -21,15 +25,40 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    environment: production
+    timeout-minutes: 35
+    environment:
+      name: production
+      url: ${{ vars.RENDER_SERVICE_URL }}
+    env:
+      DEPLOY_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - name: Disparar despliegue en Render
+      - name: Comprobar configuración
+        id: config
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_SERVICE_URL: ${{ vars.RENDER_SERVICE_URL }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::warning::RENDER_DEPLOY_HOOK_URL no está configurado; se omite el despliegue."
-            exit 0
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ] || [ -z "$RENDER_SERVICE_URL" ]; then
+            echo "::warning::Faltan RENDER_DEPLOY_HOOK_URL (secret) o RENDER_SERVICE_URL (variable); se omite el despliegue."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-          curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL"
-          echo "Despliegue solicitado para ${{ github.event.workflow_run.head_sha || github.sha }}"
+
+      - name: Clonar el commit a desplegar
+        if: steps.config.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_COMMIT }}
+
+      - name: Configurar Node.js
+        if: steps.config.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Desplegar en Render y verificar
+        if: steps.config.outputs.skip != 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_URL: ${{ vars.RENDER_SERVICE_URL }}
+        run: node scripts/cd/render-deploy.mjs
