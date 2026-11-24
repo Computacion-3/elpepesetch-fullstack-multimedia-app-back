@@ -11,6 +11,7 @@ import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { PermissionModule } from './permission/permission.module.js';
 import { RevokedToken } from './entities/revoked-token.entity.js';
+import { AuthResolver } from './graphql/auth.resolver.js';
 
 @Module({
     imports: [
@@ -34,7 +35,9 @@ import { RevokedToken } from './entities/revoked-token.entity.js';
         }),
         PermissionModule,
     ],
-    providers: [AuthService, JwtStrategy],
+    providers: [AuthService, JwtStrategy, AuthResolver],
     controllers: [AuthController],
+    // El gateway de WebSockets importa AuthModule para validar el ticket del handshake
+    exports: [AuthService],
 })
 export class AuthModule {}

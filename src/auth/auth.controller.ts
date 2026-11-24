@@ -16,6 +16,7 @@ import { AuthService } from './auth.service.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { Public } from './decorators/public.decorator.js';
 import { LoginResponseDto } from './dto/login-response.dto.js';
+import { SocketTokenResponseDto } from './dto/socket-token-response.dto.js';
 import { UserLoginDto } from './dto/user-login.dto.js';
 import { User } from './entities/user.entity.js';
 import type { AuthenticatedUser } from './interfaces/authenticated-user.interface.js';
@@ -64,6 +65,20 @@ export class AuthController {
     @ApiNoContentResponse({ description: 'Token revocado' })
     logout(@CurrentUser() user: AuthenticatedUser): Promise<void> {
         return this.authService.logout(user);
+    }
+
+    @Post('socket-token')
+    @HttpCode(HttpStatus.OK)
+    @ApiAuthenticated()
+    @ApiOperation({
+        summary: 'Ticket para el WebSocket',
+        description:
+            'Devuelve un JWT de un solo uso (60 s) para el handshake de Socket.IO: `io(url, { auth: { token } })`. ' +
+            'No sirve como Bearer en HTTP. Pedir uno nuevo en cada (re)conexión.',
+    })
+    @ApiOkResponse({ type: SocketTokenResponseDto })
+    socketToken(@CurrentUser() user: AuthenticatedUser): SocketTokenResponseDto {
+        return this.authService.issueSocketToken(user);
     }
 
     @Get('me')

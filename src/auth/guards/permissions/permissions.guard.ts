@@ -5,6 +5,7 @@ import type { Request } from 'express';
 import { PERMISSIONS_KEY } from '../../decorators/permissions.decorator.js';
 import { AuthenticatedUser } from '../../interfaces/authenticated-user.interface.js';
 import { AppLogger } from '../../../common/logger/logger.service.js';
+import { getRequest } from '../../../common/utils/get-request.js';
 
 /** Guard global (se ejecuta después de JwtAuthGuard): valida que el usuario tenga todos los permisos de @Permissions(). */
 @Injectable()
@@ -24,7 +25,7 @@ export class PermissionsGuard implements CanActivate {
             return true;
         }
 
-        const { user } = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
+        const { user } = getRequest<Request & { user?: AuthenticatedUser }>(context);
         if (!user) {
             throw new UnauthorizedException('Usuario no autenticado en la solicitud');
         }

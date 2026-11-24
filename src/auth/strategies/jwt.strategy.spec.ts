@@ -62,6 +62,12 @@ describe('JwtStrategy', () => {
         await expect(strategy.validate(payload)).resolves.toMatchObject({ permissions: [] });
     });
 
+    it('rechaza el ticket del WebSocket como token de sesión (401) sin consultar nada', async () => {
+        await expect(strategy.validate({ ...payload, typ: 'socket' })).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(authService.isRevoked).not.toHaveBeenCalled();
+        expect(usersService.findOne).not.toHaveBeenCalled();
+    });
+
     it('rechaza un token sin jti (401)', async () => {
         await expect(strategy.validate({ ...payload, jti: '' })).rejects.toBeInstanceOf(UnauthorizedException);
         expect(usersService.findOne).not.toHaveBeenCalled();

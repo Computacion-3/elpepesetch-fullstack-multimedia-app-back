@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { UserNotFoundException } from '../../common/exceptions/index.js';
 import { AuthService } from '../auth.service.js';
+import { SOCKET_TOKEN } from '../constants/auth.constants.js';
 import { AuthenticatedUser } from '../interfaces/authenticated-user.interface.js';
 import { JwtPayload } from '../interfaces/jwt-payload.interface.js';
 import { UserService } from '../user/user.service.js';
@@ -29,6 +30,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+        // El ticket del WebSocket se firma con el mismo secreto, pero no es un token de sesión
+        if (payload.typ === SOCKET_TOKEN.TYPE) {
+            throw new UnauthorizedException('El ticket del socket no sirve para autenticar peticiones HTTP');
+        }
+
         if (!payload.jti || (await this.authService.isRevoked(payload.jti))) {
             throw new UnauthorizedException('El token fue revocado o es inválido');
         }

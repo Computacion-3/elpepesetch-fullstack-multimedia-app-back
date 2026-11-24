@@ -86,6 +86,31 @@ Todas las rutas requieren `Authorization: Bearer <token>`, salvo registro, login
 | Login | `POST /auth/login` con `email` y `password` | 200 con `accessToken`; credenciales erróneas, 401 |
 | Perfil | `GET /auth/me` | 200 con el usuario autenticado |
 | Logout | `POST /auth/logout` y luego `GET /auth/me` con el mismo token | 204 y después 401: el token queda revocado |
+| Ticket del WebSocket | `POST /auth/socket-token` (o la mutation `socketToken`) con sesión | 200 con `{ token, expiresIn: 60 }`. Ese ticket abre una conexión de Socket.IO una sola vez y como Bearer en HTTP responde 401 (ver abajo) |
+
+#### Autenticación del WebSocket (handshake con JWT)
+
+El navegador no tiene el JWT de sesión (el frontend lo guarda en una cookie httpOnly), así que el socket se autentica con un **ticket**:
+
+1. El frontend, en el servidor, llama a `POST /auth/socket-token` con el token de sesión y recibe un JWT con `typ: 'socket'`, audiencia `socket`, `jti` propio y 60 s de vida.
+2. El cliente se conecta con `io(url, { auth: { token } })`.
+3. El gateway valida el handshake con `createSocketAuthMiddleware(authService)` (`src/auth/socket/socket-auth.middleware.ts`): verifica firma, audiencia y vigencia, **consume el `jti`** (se guarda en `revoked_tokens`; reutilizarlo da 401), lee rol y permisos de la BD y rechaza cuentas desactivadas. El usuario queda en `socket.data.user` (`getSocketUser(socket)`) y se une a la sala `user:<id>` (`userRoom(id)`).
+4. `JwtStrategy` rechaza los tickets en HTTP: no sirven como `Bearer`.
+
+Uso en un gateway (importar `AuthModule`, que exporta `AuthService`):
+
+```ts
+@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL, credentials: true } })
+export class NotificationsGateway implements OnGatewayInit {
+    constructor(private readonly authService: AuthService) {}
+
+    afterInit(server: Server) {
+        server.use(createSocketAuthMiddleware(this.authService));
+    }
+}
+```
+
+Para emitir a un usuario concreto: `server.to(userRoom(userId)).emit('evento', datos)`. Si el cliente se reconecta, debe pedir un ticket nuevo (ver `getSocketToken()` en el frontend).
 
 ### 2. Usuarios, roles y permisos (autorización)
 
