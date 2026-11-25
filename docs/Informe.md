@@ -4,6 +4,16 @@ _Computación en Internet III_
 
 ## Biblioteca en GraphQL y tiempo real
 
+### Activity Logs en GraphQL y tiempo real
+
+`ActivityLogsResolver.myActivity(page, limit)` reutiliza el guard global, `@CurrentUser()` y `ActivityLogsService.findAll()`. Mantiene el filtro de usuario, orden descendente y paginación REST. Las lecturas GraphQL incluyen la relación `mediaItem` para que el cliente pueda pedir los campos disponibles sin cambiar la respuesta REST. No existen mutaciones para manipular el historial.
+
+Después de persistir `logActivity()`, el servicio emite `activity.created` con el identificador del propietario, que se elimina al preparar el payload público. `ActivityEventsListener` convierte el evento interno a `realtime.direct`, y `RealtimeGateway` lo entrega a `user:{id}`. El payload contiene `activityId`, `action`, `mediaItemId` opcional y `createdAt` serializado. Las operaciones de Library, Lists y Review conservan el punto central de registro y no publican eventos individuales.
+
+La conexión Socket.IO sigue usando tickets de un solo uso obtenidos con `POST /auth/socket-token`; cada conexión y reconexión requiere uno nuevo.
+
+Para Activity Logs se añadieron pruebas unitarias del servicio, resolver y listener, además de una prueba E2E en la suite de tickets Socket.IO que cubre consulta, paginación, orden, aislamiento y eventos de Library y Lists. En esta revisión, `tsc -p tsconfig.build.json --noEmit`, `oxlint src/ test/` y `git diff --check` finalizaron correctamente. Vitest y `nest build` no pudieron ejecutarse con el Node 20 disponible porque dependencias ESM fallan al cargarse desde CommonJS. Las E2E tampoco se ejecutaron, por lo que sus resultados siguen pendientes y requieren una base aislada con `POSTGRES_DB` que contenga `test`.
+
 ### GraphQL de la biblioteca
 
 El endpoint `POST /graphql` usa code-first y expone `myLibrary`, `libraryEntry`, `addToLibrary`, `updateLibraryEntry` y `removeLibraryEntry`. `LibraryEntriesResolver` convierte los inputs validados a los DTOs REST existentes y delega las cinco operaciones a `LibraryEntriesService`, que conserva las reglas de estado, progreso, calificación, duplicidad y propiedad.

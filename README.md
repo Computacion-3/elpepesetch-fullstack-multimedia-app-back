@@ -194,6 +194,27 @@ mutation RemoveEntry($id: ID!) {
 
 También están disponibles `libraryEntry(id: ID!)` y `myLibrary(filter: LibraryFilterInput)`. GraphQL devuelve errores con `extensions.code` y `extensions.status`, por ejemplo `UNAUTHENTICATED`/401, `FORBIDDEN`/403, `NOT_FOUND`/404 y `CONFLICT`/409. La introspección se controla con `GRAPHQL_INTROSPECTION` y las consultas tienen un máximo de profundidad 10.
 
+### Historial de actividad en GraphQL y tiempo real
+
+`POST /graphql` expone la query autenticada `myActivity(page: Int, limit: Int)`. Omite los argumentos para usar `page=1` y `limit=10`; `page` debe ser al menos 1 y `limit` estar entre 1 y 50. Devuelve `{ data, meta }` en orden `createdAt DESC`, con `action`, `metadata`, `createdAt` y `mediaItem` opcional. El usuario se obtiene de la sesión JWT y solo consulta su propio historial. Ejemplo:
+
+```graphql
+query MyActivity($page: Int, $limit: Int) {
+  myActivity(page: $page, limit: $limit) {
+    data { id action metadata createdAt mediaItem { id title type } }
+    meta { total page limit totalPages }
+  }
+}
+```
+
+Al persistir una actividad, el backend emite `activity.created` a la sala privada `user:{id}` del propietario. El payload incluye `activityId`, `action`, `mediaItemId` cuando existe y `createdAt` ISO-8601. La conexión usa el ticket de un solo uso de `POST /auth/socket-token`; cada conexión y reconexión necesita un ticket nuevo.
+
+```ts
+socket.on('activity.created', (payload) => {
+  console.log('Nueva actividad:', payload);
+});
+```
+
 ```json
 {"errors":[{"message":"The media item is already in the library","extensions":{"code":"CONFLICT","status":409}}]}
 ```
