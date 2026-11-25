@@ -27,13 +27,18 @@ describe('UserListsService', () => {
             findAndCount: vi.fn(async () => [lists, lists.length] as const),
             save: vi.fn(async (list: UserList) => {
                 if (saveError) throw saveError;
+                list.createdAt ??= new Date('2026-01-02T03:04:05.000Z');
+                list.updatedAt ??= new Date('2026-01-02T03:04:05.000Z');
                 return list;
             }),
             remove: vi.fn(async (list: UserList) => list),
         };
         const mediaRepository = { findOne: vi.fn(async () => media) };
         const activity = { logActivity: vi.fn(async () => undefined) };
-        return { service: new UserListsService(repository as never, mediaRepository as never, activity as never) };
+        const events = { emitAsync: vi.fn().mockResolvedValue([]) };
+        return {
+            service: new UserListsService(repository as never, mediaRepository as never, activity as never, events as never),
+        };
     }
 
     it('creates a private list by default with an owner relation', async () => {
@@ -57,7 +62,7 @@ describe('UserListsService', () => {
     });
 
     it('maps a concurrent list-name duplicate to conflict', async () => {
-        const duplicateError = new QueryFailedError('INSERT', [], { code: '23505' });
+        const duplicateError = new QueryFailedError('INSERT', [], Object.assign(new Error(), { code: '23505' }));
         const { service } = createService([], mediaItem, duplicateError);
         await expect(service.create(7, { name: 'Favorites' })).rejects.toBeInstanceOf(ConflictException);
     });
@@ -144,6 +149,7 @@ describe('UserListsService: casos adicionales', () => {
     };
     let mediaRepository: { findOne: Mock };
     let activity: { logActivity: Mock };
+    let events: { emitAsync: Mock };
     let service: UserListsService;
 
     beforeEach(() => {
@@ -152,12 +158,17 @@ describe('UserListsService: casos adicionales', () => {
             findOne: vi.fn().mockResolvedValue(null),
             find: vi.fn().mockResolvedValue([]),
             findAndCount: vi.fn().mockResolvedValue([[], 0]),
-            save: vi.fn(async (list: UserList) => list),
+            save: vi.fn(async (list: UserList) => {
+                list.createdAt ??= new Date('2026-01-02T03:04:05.000Z');
+                list.updatedAt ??= new Date('2026-01-02T03:04:05.000Z');
+                return list;
+            }),
             remove: vi.fn(async (list: UserList) => list),
         };
         mediaRepository = { findOne: vi.fn().mockResolvedValue(approved) };
         activity = { logActivity: vi.fn().mockResolvedValue(undefined) };
-        service = new UserListsService(repository as never, mediaRepository as never, activity as never);
+        events = { emitAsync: vi.fn().mockResolvedValue([]) };
+        service = new UserListsService(repository as never, mediaRepository as never, activity as never, events as never);
     });
 
     describe('create', () => {
@@ -178,7 +189,7 @@ describe('UserListsService: casos adicionales', () => {
         });
 
         it('no oculta otros errores de base de datos ni registra actividad', async () => {
-            const failure = new QueryFailedError('INSERT', [], { code: '08006' });
+            const failure = new QueryFailedError('INSERT', [], Object.assign(new Error(), { code: '08006' }));
             repository.save.mockRejectedValue(failure);
 
             await expect(service.create(ownerId, { name: 'X' })).rejects.toBe(failure);
@@ -264,7 +275,9 @@ describe('UserListsService: casos adicionales', () => {
 
         it('traduce un nombre duplicado concurrente (23505) a 409', async () => {
             repository.findOne.mockResolvedValueOnce(ownedList());
-            repository.save.mockRejectedValue(new QueryFailedError('UPDATE', [], { code: '23505' }));
+            repository.save.mockRejectedValue(
+                new QueryFailedError('UPDATE', [], Object.assign(new Error(), { code: '23505' })),
+            );
 
             await expect(service.update(ownerId, 'list-1', { description: 'x' })).rejects.toBeInstanceOf(
                 ConflictException,
@@ -327,7 +340,9 @@ describe('UserListsService: casos adicionales', () => {
 
         it('traduce un elemento duplicado concurrente (23505) a 409', async () => {
             repository.findOne.mockResolvedValue(ownedList());
-            repository.save.mockRejectedValue(new QueryFailedError('INSERT', [], { code: '23505' }));
+            repository.save.mockRejectedValue(
+                new QueryFailedError('INSERT', [], Object.assign(new Error(), { code: '23505' })),
+            );
 
             await expect(service.addItem(ownerId, 'list-1', { mediaItemId: approved.id })).rejects.toBeInstanceOf(
                 ConflictException,

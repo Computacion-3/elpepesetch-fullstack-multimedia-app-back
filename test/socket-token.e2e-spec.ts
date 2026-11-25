@@ -148,6 +148,215 @@ describe('Ticket del WebSocket (e2e)', () => {
             expect(notifications.body.data[0]).toMatchObject({ type: 'MEDIA_MODERATED', payload: { mediaItemId: created.body.id } });
         });
 
+        it('emite cada evento de lista una vez y solo en la sala de su propietario', async () => {
+            const ownerToken = await login('pepe@test.com', 'Secreta123');
+            const owner = await connect(await socketTicket(ownerToken));
+            const other = await connect(await socketTicket(await login('admin@test.com', 'Secreta123')));
+            const eventNames = [
+                'list.created',
+                'list.updated',
+                'list.deleted',
+                'list.item.added',
+                'list.item.removed',
+            ];
+            const received: Record<string, unknown[]> = Object.fromEntries(eventNames.map((name) => [name, []]));
+            const receivedByOther: string[] = [];
+            for (const name of eventNames) {
+                owner.on(name, (payload: unknown) => received[name].push(payload));
+                other.on(name, () => receivedByOther.push(name));
+            }
+            const nextEvent = (name: string) =>
+                new Promise<unknown>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ${name}`)), 2000);
+                    owner.once(name, (payload: unknown) => {
+                        clearTimeout(timeout);
+                        resolve(payload);
+                    });
+                });
+
+            const graphqlCreatedEvent = nextEvent('list.created');
+            const created = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: 'mutation { createUserList(input: { name: "Realtime list" }) { id } }' });
+            expect(created.body.errors).toBeUndefined();
+            const listId = created.body.data.createUserList.id as string;
+            await graphqlCreatedEvent;
+
+            const restCreatedEvent = nextEvent('list.created');
+            const createdRest = await request(app.getHttpServer())
+                .post('/lists')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ name: 'Realtime REST list' })
+                .expect(201);
+            await restCreatedEvent;
+
+            const updatedEvent = nextEvent('list.updated');
+            await request(app.getHttpServer())
+                .patch(`/lists/${listId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ description: 'Updated through REST' })
+                .expect(200);
+            await updatedEvent;
+
+            const [{ id: mediaItemId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ('List socket media', 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+            );
+            const addedEvent = nextEvent('list.item.added');
+            const added = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({
+                    query: 'mutation($listId: ID!, $input: AddListItemInput!) { addItemToList(listId: $listId, input: $input) { id } }',
+                    variables: { listId, input: { mediaItemId } },
+                });
+            expect(added.body.errors).toBeUndefined();
+            await addedEvent;
+
+            const duplicate = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({
+                    query: 'mutation($listId: ID!, $input: AddListItemInput!) { addItemToList(listId: $listId, input: $input) { id } }',
+                    variables: { listId, input: { mediaItemId } },
+                });
+            expect(duplicate.body.errors[0].extensions).toMatchObject({ code: 'CONFLICT', status: 409 });
+
+            const removedItemEvent = nextEvent('list.item.removed');
+            await request(app.getHttpServer())
+                .delete(`/lists/${listId}/items/${mediaItemId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .expect(204);
+            await removedItemEvent;
+            const deletedRestEvent = nextEvent('list.deleted');
+            await request(app.getHttpServer())
+                .delete(`/lists/${listId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .expect(204);
+            await deletedRestEvent;
+            const deletedGraphqlEvent = nextEvent('list.deleted');
+            const deletedGraphql = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: 'mutation($id: ID!) { deleteUserList(id: $id) }', variables: { id: createdRest.body.id } });
+            expect(deletedGraphql.body.data.deleteUserList).toBe(true);
+            await deletedGraphqlEvent;
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(received['list.created']).toHaveLength(2);
+            expect(received['list.created'][0]).toMatchObject({ name: 'Realtime list', visibility: 'PRIVATE' });
+            expect(received['list.created'][1]).toMatchObject({ name: 'Realtime REST list', visibility: 'PRIVATE' });
+            expect(received['list.updated']).toHaveLength(1);
+            expect(received['list.updated'][0]).toMatchObject({ listId, description: 'Updated through REST' });
+            expect(received['list.item.added']).toHaveLength(1);
+            expect(received['list.item.added'][0]).toMatchObject({ listId, mediaItemId });
+            expect(received['list.item.removed']).toEqual([{ listId, mediaItemId }]);
+            expect(received['list.deleted']).toEqual([{ listId }, { listId: createdRest.body.id }]);
+            expect(receivedByOther).toEqual([]);
+        });
+
+        it('consulta actividad propia y notifica una vez a su propietario desde Library y Lists', async () => {
+            const unauthenticated = await request(app.getHttpServer())
+                .post('/graphql')
+                .send({ query: '{ myActivity { data { id } } }' });
+            expect(unauthenticated.body.errors[0].extensions).toMatchObject({ code: 'UNAUTHENTICATED', status: 401 });
+
+            const ownerToken = await login('pepe@test.com', 'Secreta123');
+            const otherToken = await login('admin@test.com', 'Secreta123');
+            const owner = await connect(await socketTicket(ownerToken));
+            const other = await connect(await socketTicket(otherToken));
+            const received: Record<string, unknown>[] = [];
+            const receivedByOther: Record<string, unknown>[] = [];
+            owner.on('activity.created', (payload: Record<string, unknown>) => received.push(payload));
+            other.on('activity.created', (payload: Record<string, unknown>) => receivedByOther.push(payload));
+
+            const activityQuery = `query($page: Int, $limit: Int) {
+                myActivity(page: $page, limit: $limit) {
+                    data { id action metadata createdAt mediaItem { id title type } }
+                    meta { total page limit totalPages }
+                }
+            }`;
+            const previousOwnerHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+            const previousOtherHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${otherToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+
+            const [{ id: mediaItemId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ($1, 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+                [`Activity socket media ${Date.now()}`],
+            );
+            const libraryEvent = new Promise<Record<string, unknown>>((resolve) =>
+                owner.once('activity.created', resolve),
+            );
+            await request(app.getHttpServer())
+                .post('/library')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ mediaItemId })
+                .expect(201);
+            expect(await libraryEvent).toMatchObject({ action: 'ENTRY_ADDED', mediaItemId });
+
+            const listEvent = new Promise<Record<string, unknown>>((resolve) => owner.once('activity.created', resolve));
+            await request(app.getHttpServer())
+                .post('/lists')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ name: `Activity list ${Date.now()}` })
+                .expect(201);
+            expect(await listEvent).toMatchObject({ action: 'LIST_CREATED' });
+
+            const ownerHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+            const otherHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${otherToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+            const paginated = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 1 } });
+
+            expect(ownerHistory.body.data.myActivity.meta.total).toBe(previousOwnerHistory.body.data.myActivity.meta.total + 2);
+            expect(ownerHistory.body.data.myActivity.data.map((activity: { action: string }) => activity.action)).toEqual(
+                expect.arrayContaining(['ENTRY_ADDED', 'LIST_CREATED']),
+            );
+            expect(ownerHistory.body.data.myActivity.data[0].mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
+            const dates = ownerHistory.body.data.myActivity.data.map((activity: { createdAt: string }) =>
+                new Date(activity.createdAt).getTime(),
+            );
+            expect(dates.every((date: number, index: number) => index === 0 || dates[index - 1] >= date)).toBe(true);
+            expect(paginated.body.data.myActivity.meta).toMatchObject({
+                total: ownerHistory.body.data.myActivity.meta.total,
+                page: 1,
+                limit: 1,
+                totalPages: ownerHistory.body.data.myActivity.meta.total,
+            });
+            expect(paginated.body.data.myActivity.data).toHaveLength(1);
+            expect(otherHistory.body.data.myActivity.meta.total).toBe(previousOtherHistory.body.data.myActivity.meta.total);
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(received).toHaveLength(2);
+            expect(receivedByOther).toEqual([]);
+
+            const invalidPage = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: '{ myActivity(page: 0) { meta { page } } }' });
+            expect(invalidPage.body.errors[0].extensions).toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+
+            const userIdFilter = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: '{ myActivity(userId: 1) { data { id } } }' });
+            expect(userIdFilter.body.errors[0].message).toContain('Unknown argument "userId"');
+        });
+
         it('el mismo ticket no se puede usar dos veces', async () => {
             const ticket = await socketTicket(await login('admin@test.com', 'Secreta123'));
             await connect(ticket);

@@ -5,10 +5,11 @@ import { UserListsController } from './user_lists.controller.js';
 import { UserList } from '../entities/user_list.entity.js';
 import { ActivityLogsModule } from '../activity_logs/activity_logs.module.js';
 import { MediaItem } from '../entities/media-item.entity.js';
+import { UserListsResolver } from './user_lists.resolver.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserList, MediaItem]), ActivityLogsModule],
   controllers: [UserListsController],
-  providers: [UserListsService],
+  providers: [UserListsService, UserListsResolver],
 })
 export class UserListsModule {}
