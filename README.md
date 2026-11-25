@@ -114,6 +114,11 @@ El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada
 | `review.visibility.changed` | `user:{authorId}` | `{ reviewId, mediaItemId, isHidden: true, hiddenReason }` para `HIDE` |
 | `account.updated` | `user:{id}` | `{ role }` |
 | `account.deactivated` | `user:{id}` | `{}` y cierre de sus sockets |
+| `list.created` | `user:{ownerId}` | `{ listId, name, visibility, createdAt }` |
+| `list.updated` | `user:{ownerId}` | `{ listId, name, description, visibility, updatedAt }` |
+| `list.deleted` | `user:{ownerId}` | `{ listId }` |
+| `list.item.added` | `user:{ownerId}` | `{ listId, mediaItemId, addedAt }` |
+| `list.item.removed` | `user:{ownerId}` | `{ listId, mediaItemId }` |
 
 Los eventos de catálogo, reporte, rol y cuenta se producen después de guardar los cambios. Los avisos de moderación, ocultamiento y cambio de rol también se persisten y pueden consultarse al reconectar.
 
@@ -194,6 +199,37 @@ También están disponibles `libraryEntry(id: ID!)` y `myLibrary(filter: Library
 ```
 
 Notificaciones REST: `GET /notifications?page=1&limit=10&isRead=false` devuelve `{ data, meta }`; `PATCH /notifications/:id/read` marca una notificación propia como leída. La autorización de propiedad se aplica en ambos endpoints.
+
+### Listas de usuario en GraphQL
+
+Las listas se pueden consumir por REST y GraphQL en paralelo. GraphQL expone `myLists`, `publicLists(filter)`, `userList(id)`, `createUserList(input)`, `updateUserList(id, input)`, `deleteUserList(id)`, `addItemToList(listId, input)` y `removeItemFromList(listId, mediaItemId)`. Todas requieren el mismo `Authorization: Bearer <accessToken>` que REST y delegan en `UserListsService`.
+
+`myLists` devuelve las listas propias. `publicLists` devuelve listas públicas de otros usuarios con `{ data, meta }` y acepta `page` y `limit` de 1 a 50, con valores predeterminados 1 y 10. `userList` permite consultar listas propias y públicas ajenas. Una lista privada ajena responde `NOT_FOUND`/404. Las mutaciones respetan la propiedad, la unicidad del nombre y el requisito de que el media agregado esté aprobado.
+
+`UserList` incluye `id`, `name`, `description`, `visibility`, `createdAt`, `updatedAt`, `owner { id username }` e `items`. `description` es nullable. `items` reutiliza `LibraryMediaItem`, incluyendo sus géneros. `CreateUserListInput` contiene `name!`, `description` nullable opcional y `visibility` (`PRIVATE` o `PUBLIC`) nullable opcional. La visibilidad predeterminada es `PRIVATE`. `UpdateUserListInput` admite los mismos campos opcionales. `AddListItemInput` requiere `mediaItemId`.
+
+```graphql
+query MyLists {
+  myLists {
+    id name description visibility createdAt updatedAt
+    owner { id username }
+    items { id title type genres { id name } }
+  }
+}
+
+query PublicLists($filter: PublicListFilterInput) {
+  publicLists(filter: $filter) {
+    data { id name visibility owner { id username } }
+    meta { total page limit totalPages }
+  }
+}
+
+mutation CreateList($input: CreateUserListInput!) {
+  createUserList(input: $input) { id name visibility owner { username } }
+}
+```
+
+Los cambios de listas generan los cinco eventos `list.*` de la tabla anterior tanto desde REST como desde GraphQL. Solo se envían a la sala privada del propietario después de guardar correctamente. Las operaciones fallidas, como agregar un elemento duplicado, no producen evento.
 
 ### 5. Reseñas, reportes y estadísticas
 

@@ -13,9 +13,17 @@ describe('RealtimeGateway', () => {
 
     it('delivers internal events only to the server-selected room', () => {
         gateway.afterInit(server as unknown as Server);
-        gateway.deliver({ room: 'moderators', event: 'moderation.queue.changed', payload: { pendingMedia: 2 } });
+        gateway.deliver({
+            room: 'moderators',
+            event: 'moderation.queue.changed',
+            payload: { kind: 'MEDIA', pendingMedia: 2, openReports: 0 },
+        });
         expect(server.to).toHaveBeenCalledWith('moderators');
-        expect(server.to.mock.results[0].value.emit).toHaveBeenCalledWith('moderation.queue.changed', { pendingMedia: 2 });
+        expect(server.to.mock.results[0].value.emit).toHaveBeenCalledWith('moderation.queue.changed', {
+            kind: 'MEDIA',
+            pendingMedia: 2,
+            openReports: 0,
+        });
     });
 
     it('updates moderator room membership from the current database role', () => {

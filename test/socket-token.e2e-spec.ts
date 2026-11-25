@@ -148,6 +148,114 @@ describe('Ticket del WebSocket (e2e)', () => {
             expect(notifications.body.data[0]).toMatchObject({ type: 'MEDIA_MODERATED', payload: { mediaItemId: created.body.id } });
         });
 
+        it('emite cada evento de lista una vez y solo en la sala de su propietario', async () => {
+            const ownerToken = await login('pepe@test.com', 'Secreta123');
+            const owner = await connect(await socketTicket(ownerToken));
+            const other = await connect(await socketTicket(await login('admin@test.com', 'Secreta123')));
+            const eventNames = [
+                'list.created',
+                'list.updated',
+                'list.deleted',
+                'list.item.added',
+                'list.item.removed',
+            ];
+            const received: Record<string, unknown[]> = Object.fromEntries(eventNames.map((name) => [name, []]));
+            const receivedByOther: string[] = [];
+            for (const name of eventNames) {
+                owner.on(name, (payload: unknown) => received[name].push(payload));
+                other.on(name, () => receivedByOther.push(name));
+            }
+            const nextEvent = (name: string) =>
+                new Promise<unknown>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ${name}`)), 2000);
+                    owner.once(name, (payload: unknown) => {
+                        clearTimeout(timeout);
+                        resolve(payload);
+                    });
+                });
+
+            const graphqlCreatedEvent = nextEvent('list.created');
+            const created = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: 'mutation { createUserList(input: { name: "Realtime list" }) { id } }' });
+            expect(created.body.errors).toBeUndefined();
+            const listId = created.body.data.createUserList.id as string;
+            await graphqlCreatedEvent;
+
+            const restCreatedEvent = nextEvent('list.created');
+            const createdRest = await request(app.getHttpServer())
+                .post('/lists')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ name: 'Realtime REST list' })
+                .expect(201);
+            await restCreatedEvent;
+
+            const updatedEvent = nextEvent('list.updated');
+            await request(app.getHttpServer())
+                .patch(`/lists/${listId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ description: 'Updated through REST' })
+                .expect(200);
+            await updatedEvent;
+
+            const [{ id: mediaItemId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ('List socket media', 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+            );
+            const addedEvent = nextEvent('list.item.added');
+            const added = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({
+                    query: 'mutation($listId: ID!, $input: AddListItemInput!) { addItemToList(listId: $listId, input: $input) { id } }',
+                    variables: { listId, input: { mediaItemId } },
+                });
+            expect(added.body.errors).toBeUndefined();
+            await addedEvent;
+
+            const duplicate = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({
+                    query: 'mutation($listId: ID!, $input: AddListItemInput!) { addItemToList(listId: $listId, input: $input) { id } }',
+                    variables: { listId, input: { mediaItemId } },
+                });
+            expect(duplicate.body.errors[0].extensions).toMatchObject({ code: 'CONFLICT', status: 409 });
+
+            const removedItemEvent = nextEvent('list.item.removed');
+            await request(app.getHttpServer())
+                .delete(`/lists/${listId}/items/${mediaItemId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .expect(204);
+            await removedItemEvent;
+            const deletedRestEvent = nextEvent('list.deleted');
+            await request(app.getHttpServer())
+                .delete(`/lists/${listId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .expect(204);
+            await deletedRestEvent;
+            const deletedGraphqlEvent = nextEvent('list.deleted');
+            const deletedGraphql = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: 'mutation($id: ID!) { deleteUserList(id: $id) }', variables: { id: createdRest.body.id } });
+            expect(deletedGraphql.body.data.deleteUserList).toBe(true);
+            await deletedGraphqlEvent;
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(received['list.created']).toHaveLength(2);
+            expect(received['list.created'][0]).toMatchObject({ name: 'Realtime list', visibility: 'PRIVATE' });
+            expect(received['list.created'][1]).toMatchObject({ name: 'Realtime REST list', visibility: 'PRIVATE' });
+            expect(received['list.updated']).toHaveLength(1);
+            expect(received['list.updated'][0]).toMatchObject({ listId, description: 'Updated through REST' });
+            expect(received['list.item.added']).toHaveLength(1);
+            expect(received['list.item.added'][0]).toMatchObject({ listId, mediaItemId });
+            expect(received['list.item.removed']).toEqual([{ listId, mediaItemId }]);
+            expect(received['list.deleted']).toEqual([{ listId }, { listId: createdRest.body.id }]);
+            expect(receivedByOther).toEqual([]);
+        });
+
         it('el mismo ticket no se puede usar dos veces', async () => {
             const ticket = await socketTicket(await login('admin@test.com', 'Secreta123'));
             await connect(ticket);
