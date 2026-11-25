@@ -32,7 +32,11 @@ describe('JwtAuthGuard', () => {
     it('no aplica a mensajes de WebSocket (ya se autenticaron en el handshake)', () => {
         const parent = vi.spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate');
         const { guard, reflector } = guardWith(undefined);
-        const wsContext = { ...context, getType: () => 'ws' } as unknown as ExecutionContext;
+        const wsContext = {
+            ...context,
+            getType: () => 'ws',
+            switchToWs: () => ({ getClient: () => ({ data: { user: { id: 1 } } }) }),
+        } as unknown as ExecutionContext;
 
         expect(guard.canActivate(wsContext)).toBe(true);
         expect(reflector.getAllAndOverride).not.toHaveBeenCalled();

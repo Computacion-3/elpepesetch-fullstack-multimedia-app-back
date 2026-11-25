@@ -5,10 +5,11 @@ import { LibraryEntriesController } from './library_entries.controller.js';
 import { LibraryEntry } from '../entities/library_entry.entity.js';
 import { ActivityLogsModule } from '../activity_logs/activity_logs.module.js';
 import { MediaItem } from '../entities/media-item.entity.js';
+import { LibraryEntriesResolver } from './library_entries.resolver.js';
 
 @Module({
     imports: [TypeOrmModule.forFeature([LibraryEntry, MediaItem]), ActivityLogsModule],
-    providers: [LibraryEntriesService],
+    providers: [LibraryEntriesService, LibraryEntriesResolver],
     controllers: [LibraryEntriesController],
 })
 export class LibraryEntriesModule {}

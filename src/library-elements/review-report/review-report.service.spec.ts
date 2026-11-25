@@ -10,7 +10,7 @@ describe('ReviewReportService', () => {
     const reportId = '22222222-2222-4222-8222-222222222222';
 
     function makeService(initialStatus = ReportStatus.OPEN) {
-        const review = Object.assign(new Review(), {
+        const review: Review = Object.assign(new Review(), {
             id: reviewId,
             user: { id: 10 },
             isHidden: false,
@@ -60,15 +60,28 @@ describe('ReviewReportService', () => {
         const manager = {
             getRepository: vi.fn((entity: unknown) => (entity === ReviewReport ? reportRepository : reviewRepository)),
         };
+        let transactionCompleted = true;
         reportRepository.manager = {
-            transaction: vi.fn(async (callback: (transactionManager: any) => unknown) => callback(manager)),
+            transaction: vi.fn(async (callback: (transactionManager: any) => unknown) => {
+                transactionCompleted = false;
+                const result = await callback(manager);
+                transactionCompleted = true;
+                return result;
+            }),
         };
-        const service = new ReviewReportService(reportRepository as never, reviewRepository as never);
-        return { service, reportRepository, reviewRepository, report, review, reports };
+        const events = {
+            emit: vi.fn(),
+            emitAsync: vi.fn(async () => {
+                if (!transactionCompleted) throw new Error('Event emitted before transaction committed');
+                return [];
+            }),
+        };
+        const service = new ReviewReportService(reportRepository as never, reviewRepository as never, events as never);
+        return { service, reportRepository, reviewRepository, report, review, reports, events };
     }
 
     it('rejects reports of the reporter own review and creates one open report for someone else', async () => {
-        const { service, reportRepository, reports } = makeService();
+        const { service, reportRepository, reports, events } = makeService();
         await expect(service.create(10, reviewId, { reason: ReportReason.OTHER })).rejects.toBeInstanceOf(
             BadRequestException,
         );
@@ -77,6 +90,7 @@ describe('ReviewReportService', () => {
         expect(created.status).toBe(ReportStatus.OPEN);
         expect(created.comment).toBe('Contenido repetido');
         expect(reports).toHaveLength(1);
+        expect(events.emitAsync).toHaveBeenCalledWith('moderation.queue.refresh', { kind: 'REPORT' });
         await expect(service.create(7, reviewId, { reason: ReportReason.SPAM })).rejects.toBeInstanceOf(
             ConflictException,
         );
@@ -84,7 +98,7 @@ describe('ReviewReportService', () => {
     });
 
     it('requires a reason for HIDE and records the moderator and reason atomically', async () => {
-        const { service, reportRepository, reviewRepository, report, review } = makeService();
+        const { service, reportRepository, reviewRepository, report, review, events } = makeService();
         await expect(service.resolve(reportId, 5, { action: ReportResolutionAction.HIDE })).rejects.toBeInstanceOf(
             BadRequestException,
         );
@@ -99,15 +113,32 @@ describe('ReviewReportService', () => {
         expect(resolved.resolvedAt).toBeInstanceOf(Date);
         expect(reportRepository.manager.transaction).toHaveBeenCalledTimes(1);
         expect(report.status).toBe(ReportStatus.RESOLVED);
+        expect(events.emitAsync).toHaveBeenNthCalledWith(
+            1,
+            'review.visibility.changed',
+            expect.objectContaining({ userId: 10, reviewId, mediaItemId: undefined, isHidden: true }),
+        );
+        expect(events.emitAsync).toHaveBeenNthCalledWith(2, 'moderation.queue.refresh', { kind: 'REPORT' });
     });
 
     it('dismisses a report and leaves its review visible', async () => {
-        const { service, review } = makeService();
+        const { service, review, events } = makeService();
         review.isHidden = true;
         review.hiddenReason = 'Motivo anterior';
         const dismissed = await service.resolve(reportId, 5, { action: ReportResolutionAction.DISMISS });
         expect(dismissed.status).toBe(ReportStatus.DISMISSED);
         expect(review).toMatchObject({ isHidden: false, hiddenReason: null });
+        expect(events.emitAsync).not.toHaveBeenCalledWith('review.visibility.changed', expect.anything());
+        expect(events.emitAsync).toHaveBeenCalledWith('moderation.queue.refresh', { kind: 'REPORT' });
+    });
+
+    it('does not emit queue events when report persistence fails', async () => {
+        const { service, reportRepository, events } = makeService();
+        const failure = new Error('database unavailable');
+        reportRepository.save.mockRejectedValue(failure);
+
+        await expect(service.create(7, reviewId, { reason: ReportReason.SPAM })).rejects.toBe(failure);
+        expect(events.emitAsync).not.toHaveBeenCalled();
     });
 
     it('does not allow resolving a report more than once', async () => {

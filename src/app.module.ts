@@ -2,6 +2,7 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ClassSerializerInterceptor, Module, ValidationPipe } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { createObserveModule } from '@nestjs/observe';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -13,6 +14,9 @@ import { PermissionsGuard } from './auth/guards/permissions/permissions.guard.js
 import { LoggerModule } from './common/logger/logger.module.js';
 import { HealthController } from './health/health.controller.js';
 import { LibraryElementsModule } from './library-elements/library-elements.module.js';
+import { formatGraphqlError, limitGraphqlDepth } from './common/graphql/graphql-error.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,6 +25,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
         ConfigModule.forRoot({
             isGlobal: true,
         }),
+        EventEmitterModule.forRoot(),
         ObserveModule.forRootAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -46,11 +51,27 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
                 synchronize: true,
             }),
         }),
-        // GraphQL en /graphql (esquema code-first en memoria). Los guards globales también lo protegen.
-        GraphQLModule.forRoot<ApolloDriverConfig>({ driver: ApolloDriver, autoSchemaFile: true, sortSchema: true }),
+        // GraphQL en /graphql. Los guards globales reutilizan la sesión autenticada de REST.
+        GraphQLModule.forRootAsync<ApolloDriverConfig>({
+            driver: ApolloDriver,
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ({
+                driver: ApolloDriver,
+                autoSchemaFile: true,
+                sortSchema: true,
+                introspection:
+                    config.get<string>('NODE_ENV') !== 'production' &&
+                    config.get<string>('GRAPHQL_INTROSPECTION') === 'true',
+                graphiql: config.get<string>('NODE_ENV') !== 'production',
+                validationRules: [limitGraphqlDepth(10)],
+                formatError: (formatted, error) => formatGraphqlError(formatted, error),
+            }),
+        }),
         LoggerModule,
         AuthModule,
         LibraryElementsModule,
+        NotificationsModule,
+        RealtimeModule,
     ],
     controllers: [AppController, HealthController],
     providers: [

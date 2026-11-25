@@ -5,7 +5,10 @@ import type { SocketUser } from '../interfaces/socket-user.interface.js';
 import { createSocketAuthMiddleware, getSocketUser, userRoom } from './socket-auth.middleware.js';
 
 describe('createSocketAuthMiddleware', () => {
-    const user: SocketUser = { id: 7, email: 'pepe@example.com', username: 'pepe', role: 'USER', permissions: [] };
+    const user: SocketUser = {
+        id: 7, email: 'pepe@example.com', username: 'pepe', role: 'USER', permissions: [],
+        sessionJti: 'session-7', tokenExp: 1_900_000_000,
+    };
 
     const fakeSocket = (auth: Record<string, unknown> = {}) =>
         ({ handshake: { auth }, data: {}, join: vi.fn().mockResolvedValue(undefined) }) as unknown as Socket & {
@@ -13,7 +16,7 @@ describe('createSocketAuthMiddleware', () => {
         };
 
     /** Ejecuta el middleware y devuelve lo que recibió `next`. */
-    const run = (verify: ReturnType<typeof vi.fn>, socket: Socket) =>
+    const run = (verify: (token: string | undefined) => Promise<SocketUser>, socket: Socket) =>
         new Promise<Error | undefined>((resolve) => {
             createSocketAuthMiddleware({ verifySocketToken: verify })(socket, resolve);
         });
@@ -27,6 +30,14 @@ describe('createSocketAuthMiddleware', () => {
         expect(verify).toHaveBeenCalledWith('ticket');
         expect(getSocketUser(socket)).toEqual(user);
         expect(socket.join).toHaveBeenCalledWith('user:7');
+        expect(socket.join).not.toHaveBeenCalledWith('moderators');
+    });
+
+    it('joins moderators only for a current moderator or administrator role', async () => {
+        const verify = vi.fn().mockResolvedValue({ ...user, role: 'MODERATOR' });
+        const socket = fakeSocket({ token: 'ticket' });
+        await expect(run(verify, socket)).resolves.toBeUndefined();
+        expect(socket.join).toHaveBeenCalledWith('moderators');
     });
 
     it('rechaza la conexión con el motivo del 401', async () => {

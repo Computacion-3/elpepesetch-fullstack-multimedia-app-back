@@ -79,7 +79,7 @@ export class LibraryEntriesService {
     async findOne(userId: number, id: string): Promise<LibraryEntry> {
         const entry = await this.repository.findOne({
             where: { id, user: { id: userId } },
-            relations: { mediaItem: true },
+            relations: { mediaItem: { genres: true } },
         });
         if (!entry) throw new NotFoundException('Library entry not found');
         return entry;
@@ -93,7 +93,7 @@ export class LibraryEntriesService {
             rating: entry.rating,
             isFavorite: entry.isFavorite,
         };
-        Object.assign(entry, dto);
+        Object.assign(entry, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
         this.applyStateRules(entry, entry.mediaItem);
         const saved = await this.repository.save(entry);
         if (entry.rating !== previous.rating) await this.recalculateRating(entry.mediaItem.id);
