@@ -17,6 +17,7 @@ describe('AuthService', () => {
     let roleService: Mocked<Pick<RoleService, 'findByName'>>;
     let jwtService: { sign: Mock; verifyAsync: Mock };
     let revokedRepo: { upsert: Mock; delete: Mock; existsBy: Mock; insert: Mock };
+    const events = { emit: vi.fn(), emitAsync: vi.fn().mockResolvedValue([]) };
 
     const passwordHash = bcrypt.hashSync('Secreta123', 4);
     const dbUser = {
@@ -38,6 +39,7 @@ describe('AuthService', () => {
             roleService as unknown as RoleService,
             jwtService as unknown as JwtService,
             revokedRepo as never,
+            events as never,
         );
     });
 
@@ -159,7 +161,10 @@ describe('AuthService', () => {
             jti: 'sesion-1',
             tokenExp: 1_900_000_000,
         };
-        const ticketPayload = { sub: '7', email: 'pepe@example.com', typ: 'socket', jti: 'ticket-1', exp: 1_900_000_060 };
+        const ticketPayload = {
+            sub: '7', email: 'pepe@example.com', typ: 'socket', jti: 'ticket-1', exp: 1_900_000_060,
+            sessionJti: 'sesion-1', sessionExp: 1_900_000_000,
+        };
         const dbUserWithPermissions = {
             ...dbUser,
             role: { id: 3, name: 'MODERATOR', rolePermissions: [{ permission: { name: 'reviews:moderate' } }] },
@@ -173,7 +178,7 @@ describe('AuthService', () => {
                 Record<string, unknown>,
                 { jwtid: string; audience: string; expiresIn: number },
             ];
-            expect(payload).toEqual({ sub: '7', email: 'pepe@example.com', typ: 'socket' });
+            expect(payload).toMatchObject({ sub: '7', email: 'pepe@example.com', typ: 'socket', sessionJti: 'sesion-1', sessionExp: 1_900_000_000 });
             expect(options.audience).toBe('socket');
             expect(options.expiresIn).toBe(60);
             expect(options.jwtid).toMatch(/^[0-9a-f-]{36}$/);
@@ -190,6 +195,8 @@ describe('AuthService', () => {
                 username: 'pepe',
                 role: 'MODERATOR',
                 permissions: ['reviews:moderate'],
+                sessionJti: 'sesion-1',
+                tokenExp: 1_900_000_000,
             });
             expect(jwtService.verifyAsync).toHaveBeenCalledWith('ticket', { audience: 'socket' });
             expect(revokedRepo.insert).toHaveBeenCalledWith({

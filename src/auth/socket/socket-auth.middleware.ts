@@ -26,6 +26,7 @@ export function createSocketAuthMiddleware(authService: Pick<AuthService, 'verif
             .then(async (user) => {
                 socket.data.user = user;
                 await socket.join(userRoom(user.id));
+                if (user.role === 'MODERATOR' || user.role === 'ADMIN') await socket.join('moderators');
                 next();
             })
             .catch((error: unknown) => {

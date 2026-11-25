@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -34,6 +35,7 @@ export class AuthService {
         private readonly jwtService: JwtService,
         @InjectRepository(RevokedToken)
         private readonly revokedTokenRepository: Repository<RevokedToken>,
+        private readonly events: EventEmitter2,
     ) {}
 
     /** Registro público: siempre crea al usuario con el rol por defecto. */
@@ -85,6 +87,7 @@ export class AuthService {
             { jti: user.jti, expiresAt: new Date(user.tokenExp * 1000) },
             { conflictPaths: ['jti'] },
         );
+        await this.events.emitAsync('auth.logout', { jti: user.jti });
         // Limpieza oportunista: los tokens ya expirados no necesitan seguir en la lista
         await this.revokedTokenRepository.delete({ expiresAt: LessThan(new Date()) });
     }
@@ -102,10 +105,12 @@ export class AuthService {
      * Así el navegador nunca recibe el token de sesión (que vive en una cookie httpOnly del frontend).
      */
     issueSocketToken(user: AuthenticatedUser): SocketTokenResponseDto {
-        const payload: Pick<JwtPayload, 'sub' | 'email' | 'typ'> = {
+        const payload: Pick<JwtPayload, 'sub' | 'email' | 'typ' | 'sessionJti' | 'sessionExp'> = {
             sub: String(user.id),
             email: user.email,
             typ: SOCKET_TOKEN.TYPE,
+            sessionJti: user.jti,
+            sessionExp: user.tokenExp,
         };
         return {
             token: this.jwtService.sign(payload, {
@@ -136,6 +141,13 @@ export class AuthService {
             throw new UnauthorizedException('El ticket del socket es inválido o expiró');
         }
 
+        if (!payload.sessionJti || !payload.sessionExp || payload.sessionExp <= Math.floor(Date.now() / 1000)) {
+            throw new UnauthorizedException('La sesión del socket expiró');
+        }
+        if (await this.isRevoked(payload.sessionJti)) {
+            throw new UnauthorizedException('La sesión del socket fue revocada');
+        }
+
         await this.consumeSocketToken(payload);
 
         const user = await this.usersService.findOne(Number(payload.sub), true).catch((error: unknown) => {
@@ -154,6 +166,8 @@ export class AuthService {
             username: user.username,
             role: user.role.name,
             permissions: user.role.rolePermissions?.map((rp) => rp.permission.name) ?? [],
+            sessionJti: payload.sessionJti,
+            tokenExp: payload.sessionExp,
         };
     }
 

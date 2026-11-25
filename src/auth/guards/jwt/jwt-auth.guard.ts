@@ -1,14 +1,15 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import type { Socket } from 'socket.io';
 
 import { getRequest } from '../../../common/utils/get-request.js';
 import { IS_PUBLIC_KEY } from '../../decorators/public.decorator.js';
 
 /**
  * Guard global: exige un JWT válido salvo en las rutas marcadas con @Public().
- * En WebSockets no aplica: la conexión ya se autenticó en el handshake (createSocketAuthMiddleware)
- * y un mensaje no trae headers HTTP que Passport pueda leer.
+ * En GraphQL obtiene req desde el contexto Apollo. En WebSocket exige el usuario validado
+ * por el middleware del handshake antes de permitir mensajes autenticados.
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -23,6 +24,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     canActivate(context: ExecutionContext) {
         if (context.getType() === 'ws') {
+            const socket = context.switchToWs().getClient<Socket>();
+            if (!socket.data?.user) throw new UnauthorizedException('Socket no autenticado');
             return true;
         }
         const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [

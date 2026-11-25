@@ -2,6 +2,26 @@
 
 _Computación en Internet III_
 
+## Biblioteca en GraphQL y tiempo real
+
+### GraphQL de la biblioteca
+
+El endpoint `POST /graphql` usa code-first y expone `myLibrary`, `libraryEntry`, `addToLibrary`, `updateLibraryEntry` y `removeLibraryEntry`. `LibraryEntriesResolver` convierte los inputs validados a los DTOs REST existentes y delega las cinco operaciones a `LibraryEntriesService`, que conserva las reglas de estado, progreso, calificación, duplicidad y propiedad.
+
+El `JwtAuthGuard` y `PermissionsGuard` globales operan con la petición de `GqlExecutionContext`; `CurrentUser` extrae de allí la misma identidad que usa REST. Los errores HTTP de Nest se conservan y se publican con `extensions.code` y `extensions.status`. La introspección usa `GRAPHQL_INTROSPECTION`; la profundidad máxima permitida es 10.
+
+### Socket.IO y notificaciones
+
+El gateway Socket.IO escucha en `/socket.io`. El frontend solicita un ticket de un solo uso en `POST /auth/socket-token` y lo envía como `auth.token`. El ticket conserva la sesión original, así `AuthService.verifySocketToken` comprueba firma, expiración, revocación de sesión y de ticket, usuario activo y permisos vigentes. El middleware asigna `user:{id}` y agrega `moderators` según el rol leído de la base de datos. Logout y expiración desconectan solo los sockets de la sesión asociada. Un cambio de rol actualiza la pertenencia a `moderators`; una desactivación envía `account.deactivated` y cierra las conexiones del usuario.
+
+Los servicios emiten eventos internos después de persistir. `RealtimeGateway` distribuye los eventos. `ModerationQueueListener` calcula los contadores desde las entidades `MediaItem` y `ReviewReport`. `NotificationEventsListener` persiste los avisos de moderación, ocultamiento y cambio de rol antes de distribuirlos. `GET /notifications` filtra por usuario y permite `isRead`, página y límite; `PATCH /notifications/:id/read` solo actualiza avisos propios. El `eventId` único hace idempotente el guardado de un mismo evento.
+
+Los payloads disponibles son `media.moderated`, `moderation.queue.changed`, `review.visibility.changed`, `account.updated` y `account.deactivated`; se describen con ejemplos de cliente en el README. HTTP y Socket.IO usan `CORS_ORIGIN` como lista separada por coma.
+
+### Verificación de la ampliación
+
+Las pruebas nuevas cubren la delegación del resolver, guards por contexto, notificaciones, salas y ciclo de vida de sockets, eventos de moderación y paridad REST/GraphQL. Con Node 24 finalizaron correctamente build, lint y las 206 pruebas unitarias en 29 suites. Las cinco suites E2E también pasaron, con 80 pruebas, usando la base aislada `mydatabase_test`; las pruebas truncan tablas y no deben apuntar a una base de desarrollo o producción.
+
 ## Capa de Seguridad y usuarios
 
 ### Alcance

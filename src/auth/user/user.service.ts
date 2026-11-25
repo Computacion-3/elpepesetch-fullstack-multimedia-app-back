@@ -1,4 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { FindOptionsWhere, ILike, Repository } from 'typeorm';
@@ -23,6 +25,7 @@ export class UserService {
         private readonly userRepository: Repository<User>,
         private readonly roleService: RoleService,
         private readonly configService: ConfigService,
+        private readonly events: EventEmitter2,
     ) {}
 
     /** Creación por un administrador: el rol viene en el DTO. */
@@ -102,11 +105,14 @@ export class UserService {
     async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
         const user = await this.findOne(id);
         const { roleId, ...userData } = updateUserDto;
+        const previousRoleId = user.role.id;
 
         if (roleId !== undefined) {
             user.role = await this.roleService.findOne(roleId);
         }
-        return await this.applyProfileChanges(user, userData);
+        const saved = await this.applyProfileChanges(user, userData);
+        if (saved.role.id !== previousRoleId) await this.emitRoleChanged(saved);
+        return saved;
     }
 
     /** Edición del propio perfil: por construcción nunca toca el rol. */
@@ -117,8 +123,11 @@ export class UserService {
 
     async assignRole(id: number, roleId: number): Promise<User> {
         const user = await this.findOne(id);
+        const previousRole = user.role.id;
         user.role = await this.roleService.findOne(roleId);
-        return await this.saveOrConflict(user);
+        const saved = await this.saveOrConflict(user);
+        if (saved.role.id !== previousRole) await this.emitRoleChanged(saved);
+        return saved;
     }
 
     /** Activa o desactiva una cuenta. Un administrador no puede desactivar la suya (evita quedarse sin acceso). */
@@ -127,8 +136,13 @@ export class UserService {
             throw new BadRequestException('No puedes desactivar tu propia cuenta');
         }
         const user = await this.findOne(id);
+        const wasActive = user.isActive;
         user.isActive = isActive;
-        return await this.saveOrConflict(user);
+        const saved = await this.saveOrConflict(user);
+        if (wasActive && !saved.isActive) {
+            await this.events.emitAsync('account.deactivated', { eventId: randomUUID(), userId: saved.id });
+        }
+        return saved;
     }
 
     async remove(id: number): Promise<{ message: string }> {
@@ -143,6 +157,14 @@ export class UserService {
         }
         this.userRepository.merge(user, data);
         return await this.saveOrConflict(user);
+    }
+
+    private async emitRoleChanged(user: User): Promise<void> {
+        await this.events.emitAsync('account.updated', {
+            eventId: randomUUID(),
+            userId: user.id,
+            role: user.role.name,
+        });
     }
 
     private async hashPassword(password: string): Promise<string> {
