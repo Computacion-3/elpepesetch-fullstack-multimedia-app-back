@@ -37,7 +37,10 @@ describe('LibraryEntriesService', () => {
             existsBy: vi.fn(async ({ id }: { id: string }) => entries.some((entry) => entry.id === id)),
             save: vi.fn(async (entry: LibraryEntry) => {
                 if (saveError) throw saveError;
-                if (!entry.id) entries.push(entry);
+                if (!entry.id) {
+                    entry.id = 'entry-' + (entries.length + 1);
+                    entries.push(entry);
+                }
                 return entry;
             }),
             remove: vi.fn(async (entry: LibraryEntry) => {
@@ -51,13 +54,17 @@ describe('LibraryEntriesService', () => {
             save: vi.fn(async (item: MediaItem) => item),
         };
         const activityLogsService = { logActivity: vi.fn(async () => undefined) };
+        const events = { emitAsync: vi.fn(async () => []) };
         return {
             service: new LibraryEntriesService(
                 repository as never,
                 mediaRepository as never,
                 activityLogsService as never,
+                events as never,
             ),
             repository,
+            activityLogsService,
+            events,
         };
     }
 
@@ -150,6 +157,48 @@ describe('LibraryEntriesService', () => {
         expect(mediaItem.averageRating).toBe(8);
         await service.remove(7, entry.id);
         expect(mediaItem.ratingsCount).toBe(0);
+    });
+
+    it('emits rating totals after a rating is added, changed or deleted', async () => {
+        const { service, events } = createService();
+        const entry = await service.create(7, {
+            mediaItemId: mediaItem.id,
+            status: LibraryStatus.IN_PROGRESS,
+            rating: 8,
+        });
+        expect(events.emitAsync).toHaveBeenLastCalledWith('media.rating.updated', {
+            mediaItemId: mediaItem.id,
+            averageRating: 8,
+            ratingsCount: 1,
+        });
+
+        events.emitAsync.mockClear();
+        await service.update(7, entry.id, { rating: 6 });
+        expect(events.emitAsync).toHaveBeenCalledWith('media.rating.updated', {
+            mediaItemId: mediaItem.id,
+            averageRating: 6,
+            ratingsCount: 1,
+        });
+
+        events.emitAsync.mockClear();
+        await service.remove(7, entry.id);
+        expect(events.emitAsync).toHaveBeenCalledWith('media.rating.updated', {
+            mediaItemId: mediaItem.id,
+            averageRating: 0,
+            ratingsCount: 0,
+        });
+    });
+    it('emits a saved rating even if activity logging fails afterward', async () => {
+        const { service, activityLogsService, events } = createService();
+        activityLogsService.logActivity.mockRejectedValueOnce(new Error('No se pudo guardar la actividad'));
+        await expect(
+            service.create(7, { mediaItemId: mediaItem.id, status: LibraryStatus.IN_PROGRESS, rating: 8 }),
+        ).rejects.toThrow('No se pudo guardar la actividad');
+        expect(events.emitAsync).toHaveBeenCalledWith('media.rating.updated', {
+            mediaItemId: mediaItem.id,
+            averageRating: 8,
+            ratingsCount: 1,
+        });
     });
 
     it('clears completedAt when leaving COMPLETED and toggles favorites', async () => {

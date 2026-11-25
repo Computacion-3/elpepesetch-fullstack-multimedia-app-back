@@ -10,5 +10,6 @@ import { MediaItemService } from './media-item.service.js';
     imports: [TypeOrmModule.forFeature([MediaItem, Genre])],
     controllers: [MediaItemController],
     providers: [MediaItemService],
+    exports: [MediaItemService],
 })
 export class MediaItemModule {}

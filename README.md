@@ -98,7 +98,7 @@ const socket = io(process.env.NEXT_PUBLIC_WS_URL, {
 
 El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada conexión o reconexión necesita un ticket nuevo. Auth valida la firma, expiración, uso único, revocación de la sesión original, estado activo del usuario y rol/permisos actuales desde la base de datos. Logout desconecta los sockets de esa sesión y la expiración de la sesión cierra el socket.
 
-`getFreshSocketTicket` es una función del BFF de Next.js. Debe llamar a `POST /auth/socket-token` con la sesión httpOnly y devolver `{ token }` al navegador. Cada reconexión solicita un ticket nuevo. El servidor asigna `user:{id}` a cada usuario y `moderators` a `MODERATOR` y `ADMIN`. El cliente no puede solicitar salas. El origen se controla con `CORS_ORIGIN`.
+`getFreshSocketTicket` es una función del BFF de Next.js. Debe llamar a `POST /auth/socket-token` con la sesión httpOnly y devolver `{ token }` al navegador. Cada reconexión solicita un ticket nuevo. El servidor asigna `user:{id}` a cada usuario y `moderators` a `MODERATOR` y `ADMIN`. Para el extra RF-WS-12, el cliente puede solicitar solo `media.subscribe` o `media.unsubscribe` con `mediaItemId`; antes de unirse, el servidor comprueba con las reglas del catálogo que el elemento sea visible para ese usuario. El cliente no puede elegir nombres de sala arbitrarios. El origen se controla con `CORS_ORIGIN`.
 
 | Evento | Destino | Payload |
 | --- | --- | --- |
@@ -108,6 +108,8 @@ El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada
 | `account.updated` | `user:{id}` | `{ role }` |
 | `account.deactivated` | `user:{id}` | `{}` y cierre de sus sockets |
 | `activity.created` | `user:{id}` | `{ activityId, action, mediaItemId?, createdAt }` |
+| `media.rating.updated` (extra) | `media:{mediaItemId}` | `{ mediaItemId, averageRating, ratingsCount }` |
+| `review.created` (extra) | `media:{mediaItemId}` | `{ reviewId, title, username }` |
 | `list.created` | `user:{ownerId}` | `{ listId, name, visibility, createdAt }` |
 | `list.updated` | `user:{ownerId}` | `{ listId, name, description, visibility, updatedAt }` |
 | `list.deleted` | `user:{ownerId}` | `{ listId }` |
@@ -115,6 +117,15 @@ El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada
 | `list.item.removed` | `user:{ownerId}` | `{ listId, mediaItemId }` |
 
 Los eventos de catálogo, reporte, rol y cuenta se producen después de guardar los cambios. Los avisos de moderación, ocultamiento y cambio de rol también se persisten y pueden consultarse al reconectar.
+
+Para ver cambios de calificación y reseñas en vivo, el cliente se suscribe al elemento visible que está mostrando. El servidor arma la sala `media:{mediaItemId}` y entrega eventos solo a sus miembros:
+
+```ts
+socket.emit('media.subscribe', { mediaItemId }, (result) => console.log(result));
+socket.on('media.rating.updated', (payload) => console.log(payload));
+socket.on('review.created', (payload) => console.log(payload));
+socket.emit('media.unsubscribe', { mediaItemId });
+```
 
 ```ts
 socket.on('media.moderated', (payload) => console.log(payload));

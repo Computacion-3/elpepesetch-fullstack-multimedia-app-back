@@ -30,13 +30,13 @@ El gateway Socket.IO escucha en `/socket.io`. El frontend solicita un ticket de 
 
 Los servicios emiten eventos internos después de persistir. `RealtimeGateway` distribuye los eventos. `ModerationQueueListener` calcula los contadores desde las entidades `MediaItem` y `ReviewReport`. `NotificationEventsListener` persiste los avisos de moderación, ocultamiento y cambio de rol antes de distribuirlos. `GET /notifications` filtra por usuario y permite `isRead`, página y límite; `PATCH /notifications/:id/read` solo actualiza avisos propios. El `eventId` único hace idempotente el guardado de un mismo evento.
 
-Los payloads disponibles son `media.moderated`, `moderation.queue.changed`, `review.visibility.changed`, `account.updated` y `account.deactivated`; se describen con ejemplos de cliente en el README. HTTP y Socket.IO usan `CORS_ORIGIN` como lista separada por coma.
+Los eventos incluyen `media.moderated`, `moderation.queue.changed`, `review.visibility.changed`, `account.updated`, `account.deactivated`, `activity.created`, los cambios de listas y los extras `media.rating.updated` y `review.created`. Para estos dos últimos, `media.subscribe` comprueba la visibilidad con `MediaItemService` antes de unir el socket a `media:{id}`; `media.unsubscribe` lo retira. El servidor valida el UUID y construye el nombre de sala, por lo que no admite unirse a salas arbitrarias. HTTP y Socket.IO usan `CORS_ORIGIN` como lista separada por coma.
 
 `UserListsService` publica un evento interno `user-list.changed` después de completar la persistencia y, al crear una lista, después de registrar su actividad. `UserListEventsListener` lo convierte al canal `realtime.direct` existente, que `RealtimeGateway` distribuye únicamente a `user:{ownerId}`. Los eventos de salida son `list.created`, `list.updated`, `list.deleted`, `list.item.added` y `list.item.removed`. El servicio no depende del gateway; REST y GraphQL usan las mismas operaciones y producen un solo evento por cambio exitoso. Un update sin cambios no emite evento.
 
 ### Verificación de la ampliación
 
-La verificación de esta rama se ejecutó con Node 22.23.2: `npm run lint` y `npm run build` finalizaron correctamente; `npm run test` pasó 222 pruebas en 34 archivos; `npm run test:e2e` pasó 85 pruebas en seis suites contra PostgreSQL desechable (`POSTGRES_DB=mydatabase_test`). `npm run seed` se ejecutó dos veces y mantuvo 10 géneros, 3 roles, 3 usuarios, cinco elementos aprobados por tipo y tres listas (dos públicas y una privada). Las E2E cubren autenticación, autorización, GraphQL, handshake y revocación del socket, usuario inactivo, notificaciones y aislamiento de salas.
+La verificación de esta rama se ejecutó con Node 22.23.2: `npm run lint` y `npm run build` finalizaron correctamente; `npm run test` pasó 229 pruebas en 35 archivos; `npm run test:e2e` pasó 86 pruebas en seis suites contra PostgreSQL desechable (`POSTGRES_DB=mydatabase_test`). `npm run seed` se ejecutó dos veces y mantuvo 10 géneros, 3 roles, 3 usuarios, cinco elementos aprobados por tipo y tres listas (dos públicas y una privada). Las E2E cubren autenticación, autorización, GraphQL, handshake y revocación del socket, usuario inactivo, notificaciones, aislamiento de salas y actualizaciones de rating y reseña en `media:{id}`.
 
 ## Contratos de GraphQL y tiempo real
 
@@ -70,7 +70,7 @@ Los inputs GraphQL reutilizan las restricciones de `class-validator` de los DTO 
 
 ### Eventos WebSocket
 
-El cliente envía el ticket JWT solo en `auth.token` durante el handshake. El servidor asigna las salas: cada usuario entra en `user:{id}`; moderadores y administradores también entran en `moderators`. El cliente no puede solicitar salas.
+El cliente envía el ticket JWT solo en `auth.token` durante el handshake. El servidor asigna las salas: cada usuario entra en `user:{id}`; moderadores y administradores también entran en `moderators`. Para RF-WS-12 se admiten `media.subscribe` y `media.unsubscribe` con `mediaItemId`; el gateway valida UUID y visibilidad, y calcula `media:{id}` en el servidor. No se aceptan nombres de sala arbitrarios.
 
 | Evento | Se emite a | Payload |
 |---|---|---|
@@ -80,13 +80,15 @@ El cliente envía el ticket JWT solo en `auth.token` durante el handshake. El se
 | `account.updated` | `user:{id}` | `role` vigente |
 | `account.deactivated` | `user:{id}` | Objeto vacío; luego se cierran sus sockets |
 | `activity.created` | `user:{id}` | `activityId`, `action`, `mediaItemId?`, `createdAt` ISO-8601 |
+| `media.rating.updated` (extra) | `media:{mediaItemId}` | `mediaItemId`, `averageRating`, `ratingsCount` |
+| `review.created` (extra) | `media:{mediaItemId}` | `reviewId`, `title`, `username` |
 | `list.created` | `user:{ownerId}` | `listId`, `name`, `visibility`, `createdAt` |
 | `list.updated` | `user:{ownerId}` | `listId`, `name`, `description`, `visibility`, `updatedAt` |
 | `list.deleted` | `user:{ownerId}` | `listId` |
 | `list.item.added` | `user:{ownerId}` | `listId`, `mediaItemId`, `addedAt` |
 | `list.item.removed` | `user:{ownerId}` | `listId`, `mediaItemId` |
 
-Los servicios de dominio emiten eventos internos después de guardar en PostgreSQL. El gateway solo los entrega a la sala correspondiente. Las notificaciones de moderación, ocultamiento y cambio de rol también se guardan y se consultan mediante `GET /notifications?page=1&limit=10&isRead=false`; `PATCH /notifications/:id/read` marca una notificación propia como leída.
+Los servicios de dominio emiten eventos internos después de guardar en PostgreSQL. `LibraryEntriesService` publica el promedio y número de ratings cuando una calificación se agrega, cambia o elimina. `ReviewService` publica la reseña después de guardarla. `MediaLiveEventsListener` convierte ambos contratos a entregas dirigidas a `media:{mediaItemId}`. El gateway solo los entrega a la sala correspondiente. Las notificaciones de moderación, ocultamiento y cambio de rol también se guardan y se consultan mediante `GET /notifications?page=1&limit=10&isRead=false`; `PATCH /notifications/:id/read` marca una notificación propia como leída.
 
 ## Capa de Seguridad y usuarios
 

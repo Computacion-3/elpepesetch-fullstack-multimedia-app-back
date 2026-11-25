@@ -42,7 +42,7 @@ export class ReviewController {
         @Param('mediaItemId', new ParseUUIDPipe()) mediaItemId: string,
         @Body() dto: CreateReviewDto,
     ) {
-        return this.reviewService.create(user.id, mediaItemId, dto);
+        return this.reviewService.create(user, mediaItemId, dto);
     }
 
     @Get('media/:mediaItemId/reviews')

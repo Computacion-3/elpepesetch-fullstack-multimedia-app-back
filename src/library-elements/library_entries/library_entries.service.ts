@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
 import { isUniqueViolation } from '../../common/database/pg-errors.js';
@@ -9,6 +10,7 @@ import { UpdateLibraryEntryDto } from './dto/update-library_entry.dto.js';
 import { LibraryEntry } from '../entities/library_entry.entity.js';
 import { MediaItem } from '../entities/media-item.entity.js';
 import { ActivityAction, ApprovalStatus, LibraryStatus, MediaType } from '../enums/library.enums.js';
+import type { MediaRatingUpdatedEvent } from '../events/media-rating-updated.event.js';
 
 @Injectable()
 export class LibraryEntriesService {
@@ -16,6 +18,7 @@ export class LibraryEntriesService {
         @InjectRepository(LibraryEntry) private readonly repository: Repository<LibraryEntry>,
         @InjectRepository(MediaItem) private readonly mediaRepository: Repository<MediaItem>,
         private readonly activityLogsService: ActivityLogsService,
+        private readonly events: EventEmitter2,
     ) {}
 
     async create(userId: number, dto: CreateLibraryEntryDto): Promise<LibraryEntry> {
@@ -49,7 +52,8 @@ export class LibraryEntriesService {
             if (isUniqueViolation(error)) throw new ConflictException('The media item is already in the library');
             throw error;
         }
-        await this.recalculateRating(mediaItem.id);
+        const updatedMediaItem = await this.recalculateRating(mediaItem.id);
+        if (saved.rating !== null && updatedMediaItem) await this.emitRatingUpdated(updatedMediaItem);
         await this.activityLogsService.logActivity(userId, {
             action: ActivityAction.ENTRY_ADDED,
             mediaItemId: mediaItem.id,
@@ -101,7 +105,9 @@ export class LibraryEntriesService {
         Object.assign(entry, Object.fromEntries(Object.entries(dto).filter(([, value]) => value !== undefined)));
         this.applyStateRules(entry, entry.mediaItem);
         const saved = await this.repository.save(entry);
-        if (entry.rating !== previous.rating) await this.recalculateRating(entry.mediaItem.id);
+        const updatedMediaItem =
+            entry.rating !== previous.rating ? await this.recalculateRating(entry.mediaItem.id) : null;
+        if (updatedMediaItem) await this.emitRatingUpdated(updatedMediaItem);
         if (entry.status !== previous.status) {
             await this.activityLogsService.logActivity(userId, {
                 action:
@@ -131,8 +137,10 @@ export class LibraryEntriesService {
 
     async remove(userId: number, id: string): Promise<void> {
         const entry = await this.findOne(userId, id);
+        const hadRating = entry.rating !== null;
         await this.repository.remove(entry);
-        await this.recalculateRating(entry.mediaItem.id);
+        const updatedMediaItem = await this.recalculateRating(entry.mediaItem.id);
+        if (hadRating && updatedMediaItem) await this.emitRatingUpdated(updatedMediaItem);
     }
 
     private async getMediaItem(id: string): Promise<MediaItem> {
@@ -206,17 +214,28 @@ export class LibraryEntriesService {
         });
     }
 
-    private async recalculateRating(mediaItemId: string): Promise<void> {
+    private async recalculateRating(mediaItemId: string): Promise<MediaItem | null> {
         const entries = await this.repository.find({ where: { mediaItem: { id: mediaItemId } } });
         const ratings = entries.flatMap((entry) => (entry.rating === null ? [] : [entry.rating]));
         const mediaItem = await this.mediaRepository.findOne({ where: { id: mediaItemId } });
-        if (!mediaItem) return;
+        if (!mediaItem) return null;
         mediaItem.ratingsCount = ratings.length;
         mediaItem.averageRating =
             ratings.length === 0
                 ? 0
                 : Number((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length).toFixed(1));
         await this.mediaRepository.save(mediaItem);
+        return mediaItem;
+    }
+
+    // Publica el promedio solo después de guardar el elemento y sus totales.
+    private async emitRatingUpdated(mediaItem: MediaItem): Promise<void> {
+        const event: MediaRatingUpdatedEvent = {
+            mediaItemId: mediaItem.id,
+            averageRating: Number(mediaItem.averageRating),
+            ratingsCount: mediaItem.ratingsCount,
+        };
+        await this.events.emitAsync('media.rating.updated', event);
     }
 }
 
