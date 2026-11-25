@@ -15,6 +15,7 @@ import { LoggerModule } from './common/logger/logger.module.js';
 import { HealthController } from './health/health.controller.js';
 import { LibraryElementsModule } from './library-elements/library-elements.module.js';
 import { formatGraphqlError, limitGraphqlDepth } from './common/graphql/graphql-error.js';
+import { GraphQLJSONScalar } from './common/graphql/json.scalar.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 
@@ -64,6 +65,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
                     config.get<string>('GRAPHQL_INTROSPECTION') === 'true',
                 graphiql: config.get<string>('NODE_ENV') !== 'production',
                 validationRules: [limitGraphqlDepth(10)],
+                buildSchemaOptions: { scalarsMap: [{ type: Object, scalar: GraphQLJSONScalar }] },
                 formatError: (formatted, error) => formatGraphqlError(formatted, error),
             }),
         }),

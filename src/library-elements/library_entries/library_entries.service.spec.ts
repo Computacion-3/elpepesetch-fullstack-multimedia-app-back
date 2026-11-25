@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { LibraryEntriesService } from './library_entries.service.js';
 import { LibraryEntry } from '../entities/library_entry.entity.js';
 import { MediaItem } from '../entities/media-item.entity.js';
@@ -34,6 +34,7 @@ describe('LibraryEntriesService', () => {
                     ) ?? null,
             ),
             find: vi.fn(async () => entries),
+            existsBy: vi.fn(async ({ id }: { id: string }) => entries.some((entry) => entry.id === id)),
             save: vi.fn(async (entry: LibraryEntry) => {
                 if (saveError) throw saveError;
                 if (!entry.id) entries.push(entry);
@@ -67,6 +68,17 @@ describe('LibraryEntriesService', () => {
         expect(entry.progress).toBe(0);
         expect(entry.user).toEqual({ id: 7 });
         expect(entry.mediaItem).toBe(mediaItem);
+    });
+
+    it('returns 403 for another user’s entry and 404 for an unknown entry', async () => {
+        const foreign = Object.assign(new LibraryEntry(), {
+            id: 'entry-foreign',
+            user: { id: 8 },
+            mediaItem,
+        });
+        const { service } = createService([foreign]);
+        await expect(service.findOne(7, foreign.id)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(service.findOne(7, 'missing-entry')).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('rejects duplicates and ratings while pending', async () => {

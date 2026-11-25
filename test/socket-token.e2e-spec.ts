@@ -145,7 +145,38 @@ describe('Ticket del WebSocket (e2e)', () => {
                 .set('Authorization', `Bearer ${creatorToken}`)
                 .expect(200);
             expect(notifications.body.data).toHaveLength(1);
-            expect(notifications.body.data[0]).toMatchObject({ type: 'MEDIA_MODERATED', payload: { mediaItemId: created.body.id } });
+            const notification = notifications.body.data[0] as { id: string; isRead: boolean };
+            expect(notification).toMatchObject({
+                type: 'MEDIA_MODERATED',
+                payload: { mediaItemId: created.body.id },
+                isRead: false,
+            });
+
+            // El filtro y la marca de lectura solo operan sobre la cuenta dueña del aviso.
+            const unread = await request(app.getHttpServer())
+                .get('/notifications?isRead=false')
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200);
+            expect(unread.body.data.map((item: { id: string }) => item.id)).toContain(notification.id);
+
+            await request(app.getHttpServer())
+                .patch(`/notifications/${notification.id}/read`)
+                .set('Authorization', `Bearer ${await login('admin@test.com', 'Secreta123')}`)
+                .expect(404);
+
+            const marked = await request(app.getHttpServer())
+                .patch(`/notifications/${notification.id}/read`)
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200);
+            expect(marked.body.isRead).toBe(true);
+
+            await request(app.getHttpServer())
+                .get('/notifications?isRead=true')
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200)
+                .expect(({ body }) => expect(body.data.map((item: { id: string }) => item.id)).toContain(notification.id));
+
+            await request(app.getHttpServer()).get('/notifications').expect(401);
         });
 
         it('emite cada evento de lista una vez y solo en la sala de su propietario', async () => {
@@ -326,7 +357,10 @@ describe('Ticket del WebSocket (e2e)', () => {
             expect(ownerHistory.body.data.myActivity.data.map((activity: { action: string }) => activity.action)).toEqual(
                 expect.arrayContaining(['ENTRY_ADDED', 'LIST_CREATED']),
             );
-            expect(ownerHistory.body.data.myActivity.data[0].mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
+            const entryActivity = ownerHistory.body.data.myActivity.data.find(
+                (activity: { action: string }) => activity.action === 'ENTRY_ADDED',
+            );
+            expect(entryActivity?.mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
             const dates = ownerHistory.body.data.myActivity.data.map((activity: { createdAt: string }) =>
                 new Date(activity.createdAt).getTime(),
             );

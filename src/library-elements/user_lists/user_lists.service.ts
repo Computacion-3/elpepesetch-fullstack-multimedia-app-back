@@ -124,8 +124,10 @@ export class UserListsService {
 
     async remove(ownerId: number, id: string): Promise<void> {
         const list = await this.findOwnedList(ownerId, id);
+        // Conserva el ID antes de que TypeORM elimine la entidad.
+        const listId = list.id;
         await this.repository.remove(list);
-        await this.emitListEvent({ ownerId, event: 'list.deleted', payload: { listId: list.id } });
+        await this.emitListEvent({ ownerId, event: 'list.deleted', payload: { listId } });
     }
 
     async addItem(ownerId: number, id: string, dto: AddListItemDto, loadGenres = false): Promise<UserList> {

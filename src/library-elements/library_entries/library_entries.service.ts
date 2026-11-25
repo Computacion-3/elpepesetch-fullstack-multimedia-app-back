@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
@@ -81,7 +81,12 @@ export class LibraryEntriesService {
             where: { id, user: { id: userId } },
             relations: { mediaItem: { genres: true } },
         });
-        if (!entry) throw new NotFoundException('Library entry not found');
+        if (!entry) {
+            // Distingue una entrada ajena de una que no existe, según el requisito de propiedad.
+            const exists = await this.repository.existsBy({ id });
+            if (exists) throw new ForbiddenException('Library entry belongs to another user');
+            throw new NotFoundException('Library entry not found');
+        }
         return entry;
     }
 

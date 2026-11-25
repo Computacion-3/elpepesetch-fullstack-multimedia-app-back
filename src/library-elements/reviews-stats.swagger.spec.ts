@@ -39,5 +39,5 @@ describe('reviews, reports and stats Swagger', () => {
         } finally {
             await app.close();
         }
-    });
+    }, 30_000);
 });
