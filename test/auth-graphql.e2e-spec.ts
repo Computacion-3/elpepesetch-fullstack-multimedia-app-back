@@ -13,6 +13,9 @@ const REGISTER = `mutation Register($input: RegisterInput!) {
     register(input: $input) { id username role { name } }
 }`;
 const ME = `{ me { id username role { name rolePermissions { permission { name } } } } }`;
+const UPDATE_PROFILE = `mutation UpdateProfile($input: UpdateProfileInput!) {
+    updateProfile(input: $input) { id username fullName bio role { name } }
+}`;
 
 // Requiere PostgreSQL (variables POSTGRES_* / DB_HOST) y JWT_SECRET en el entorno.
 describe('Autenticación por GraphQL (e2e)', () => {
@@ -123,6 +126,42 @@ describe('Autenticación por GraphQL (e2e)', () => {
                 input: { username: 'otro_1', email: 'nuevo@test.com', password: 'Secreta123' },
             });
             expect(originalError(body)).toMatchObject({ statusCode: 409 });
+        });
+    });
+
+    describe('updateProfile', () => {
+        it('edita el perfil propio y conserva el rol', async () => {
+            const token = await login('nuevo@test.com', 'Secreta123');
+            const { body } = await gql(UPDATE_PROFILE, { input: { fullName: 'Nuevo Nombre', bio: 'Hola' } }, token);
+            expect(body.data.updateProfile).toMatchObject({
+                username: 'nuevo_1',
+                fullName: 'Nuevo Nombre',
+                bio: 'Hola',
+                role: { name: 'USER' },
+            });
+        });
+
+        it('cambia la contraseña y la nueva sirve para iniciar sesión', async () => {
+            const token = await login('nuevo@test.com', 'Secreta123');
+            await gql(UPDATE_PROFILE, { input: { password: 'Nueva1234' } }, token);
+            expect(await login('nuevo@test.com', 'Nueva1234')).toEqual(expect.any(String));
+        });
+
+        it('con el correo de otra cuenta responde 409', async () => {
+            const token = await login('nuevo@test.com', 'Nueva1234');
+            const { body } = await gql(UPDATE_PROFILE, { input: { email: 'admin@test.com' } }, token);
+            expect(originalError(body)).toMatchObject({ statusCode: 409 });
+        });
+
+        it('no expone el rol en el input', async () => {
+            const token = await login('nuevo@test.com', 'Nueva1234');
+            const { body } = await gql(UPDATE_PROFILE, { input: { roleId: 2 } }, token);
+            expect(body.errors).toBeDefined();
+        });
+
+        it('sin token responde 401', async () => {
+            const { body } = await gql(UPDATE_PROFILE, { input: { fullName: 'X' } });
+            expect(originalError(body)).toMatchObject({ statusCode: 401 });
         });
     });
 

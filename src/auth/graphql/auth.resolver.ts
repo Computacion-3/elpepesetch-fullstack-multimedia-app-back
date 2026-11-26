@@ -5,13 +5,17 @@ import { CurrentUser } from '../decorators/current-user.decorator.js';
 import { Public } from '../decorators/public.decorator.js';
 import { User } from '../entities/user.entity.js';
 import type { AuthenticatedUser } from '../interfaces/authenticated-user.interface.js';
-import { LoginInput, RegisterInput } from './auth.inputs.js';
+import { UserService } from '../user/user.service.js';
+import { LoginInput, RegisterInput, UpdateProfileInput } from './auth.inputs.js';
 import { LoginResultType, SocketTokenType, UserType } from './auth.types.js';
 
 /** Autenticación por GraphQL: delega en AuthService, igual que AuthController en REST. */
 @Resolver()
 export class AuthResolver {
-    constructor(private readonly authService: AuthService) {}
+    constructor(
+        private readonly authService: AuthService,
+        private readonly userService: UserService,
+    ) {}
 
     @Public()
     @Mutation(() => UserType, { description: 'Crea una cuenta con el rol USER' })
@@ -38,6 +42,16 @@ export class AuthResolver {
 
     @Query(() => UserType, { description: 'Perfil del usuario autenticado, con su rol y permisos' })
     me(@CurrentUser() user: AuthenticatedUser): Promise<User> {
+        return this.authService.me(user);
+    }
+
+    @Mutation(() => UserType, { description: 'Edita el perfil propio (igual que PATCH /users/me); no permite cambiar el rol' })
+    async updateProfile(
+        @CurrentUser() user: AuthenticatedUser,
+        @Args('input') input: UpdateProfileInput,
+    ): Promise<User> {
+        await this.userService.updateProfile(user.id, input);
+        // Se devuelve el perfil completo (rol y permisos) como en `me`.
         return this.authService.me(user);
     }
 }
