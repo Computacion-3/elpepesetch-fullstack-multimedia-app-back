@@ -356,7 +356,7 @@ describe('Ticket del WebSocket (e2e)', () => {
 
             const activityQuery = `query($page: Int, $limit: Int) {
                 myActivity(page: $page, limit: $limit) {
-                    data { id action metadata createdAt mediaItem { id title type } }
+                    data { id action metadata createdAt mediaItem { id title type genres { id name } } }
                     meta { total page limit totalPages }
                 }
             }`;
@@ -368,6 +368,22 @@ describe('Ticket del WebSocket (e2e)', () => {
                 .post('/graphql')
                 .set('Authorization', `Bearer ${otherToken}`)
                 .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+
+            const [{ id: genreMediaId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ($1, 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+                [`Activity genre media ${Date.now()}`],
+            );
+            await app.get(DataSource).query(
+                `INSERT INTO media_item_genres (media_item_id, genre_id) VALUES ($1, $2)`,
+                [genreMediaId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+            );
+            // Actividad con géneros a nombre del propietario (pepe), no del admin.
+            const [{ id: ownerId }] = await app.get(DataSource).query(`SELECT id FROM users WHERE email = 'pepe@test.com'`);
+            await app.get(DataSource).query(
+                `INSERT INTO activity_logs (user_id, action, media_item_id) VALUES ($1, 'ENTRY_ADDED', $2)`,
+                [ownerId, genreMediaId],
+            );
 
             const [{ id: mediaItemId }] = await app.get(DataSource).query(
                 `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
@@ -405,14 +421,21 @@ describe('Ticket del WebSocket (e2e)', () => {
                 .set('Authorization', `Bearer ${ownerToken}`)
                 .send({ query: activityQuery, variables: { page: 1, limit: 1 } });
 
-            expect(ownerHistory.body.data.myActivity.meta.total).toBe(previousOwnerHistory.body.data.myActivity.meta.total + 2);
+            expect(ownerHistory.body.data.myActivity.meta.total).toBe(previousOwnerHistory.body.data.myActivity.meta.total + 3);
             expect(ownerHistory.body.data.myActivity.data.map((activity: { action: string }) => activity.action)).toEqual(
                 expect.arrayContaining(['ENTRY_ADDED', 'LIST_CREATED']),
             );
-            const entryActivity = ownerHistory.body.data.myActivity.data.find(
-                (activity: { action: string }) => activity.action === 'ENTRY_ADDED',
+            const activityWithGenres = ownerHistory.body.data.myActivity.data.find(
+                (activity: { mediaItem?: { id: string } }) => activity.mediaItem?.id === genreMediaId,
             );
-            expect(entryActivity?.mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
+            const activityWithoutGenres = ownerHistory.body.data.myActivity.data.find(
+                (activity: { mediaItem?: { id: string } }) => activity.mediaItem?.id === mediaItemId,
+            );
+            // La más reciente es LIST_CREATED (sin mediaItem), por eso se busca por id y no con data[0].
+            expect(activityWithoutGenres?.mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK', genres: [] });
+            expect(activityWithGenres?.mediaItem.genres).toEqual([
+                { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Test' },
+            ]);
             const dates = ownerHistory.body.data.myActivity.data.map((activity: { createdAt: string }) =>
                 new Date(activity.createdAt).getTime(),
             );
