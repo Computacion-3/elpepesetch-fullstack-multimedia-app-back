@@ -1,4 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { isUniqueViolation } from '../../common/database/pg-errors.js';
@@ -14,6 +16,7 @@ export class ReviewReportService {
     constructor(
         @InjectRepository(ReviewReport) private readonly repository: Repository<ReviewReport>,
         @InjectRepository(Review) private readonly reviewRepository: Repository<Review>,
+        private readonly events: EventEmitter2,
     ) {}
 
     async create(reporterId: number, reviewId: string, dto: CreateReviewReportDto): Promise<ReviewReport> {
@@ -26,8 +29,9 @@ export class ReviewReportService {
         });
         if (existing) throw new ConflictException('Ya reportaste esta reseña');
 
+        let report: ReviewReport;
         try {
-            return await this.repository.save(
+            report = await this.repository.save(
                 this.repository.create({
                     review: { id: reviewId },
                     reporter: { id: reporterId },
@@ -42,6 +46,8 @@ export class ReviewReportService {
             if (isUniqueViolation(error)) throw new ConflictException('Ya reportaste esta reseña');
             throw error;
         }
+        await this.events.emitAsync('moderation.queue.refresh', { kind: 'REPORT' });
+        return report;
     }
 
     async findAll(query: ReviewReportQueryDto): Promise<ReviewReportListResponse> {
@@ -67,10 +73,13 @@ export class ReviewReportService {
             throw new BadRequestException('El motivo es obligatorio para ocultar una reseña');
         }
 
-        return this.repository.manager.transaction(async (manager) => {
+        const report = await this.repository.manager.transaction(async (manager) => {
             const reports = manager.getRepository(ReviewReport);
             const reviews = manager.getRepository(Review);
-            const report = await reports.findOne({ where: { id }, relations: { review: true } });
+            const report = await reports.findOne({
+                where: { id },
+                relations: { review: { user: true, mediaItem: true } },
+            });
             if (!report) throw new NotFoundException(`Review report ${id} not found`);
             if (report.status !== ReportStatus.OPEN) throw new ConflictException('El reporte ya fue resuelto');
 
@@ -90,6 +99,18 @@ export class ReviewReportService {
             report.resolvedAt = new Date();
             return reports.save(report);
         });
+        if (dto.action === ReportResolutionAction.HIDE) {
+            await this.events.emitAsync('review.visibility.changed', {
+                eventId: randomUUID(),
+                userId: report.review.user?.id,
+                reviewId: report.review.id,
+                mediaItemId: report.review.mediaItem?.id,
+                isHidden: true,
+                hiddenReason: report.review.hiddenReason,
+            });
+        }
+        await this.events.emitAsync('moderation.queue.refresh', { kind: 'REPORT' });
+        return report;
     }
 }
 

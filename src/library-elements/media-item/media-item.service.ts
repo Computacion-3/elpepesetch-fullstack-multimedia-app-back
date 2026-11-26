@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
     BadRequestException,
     ConflictException,
@@ -5,6 +6,7 @@ import {
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 
@@ -31,6 +33,7 @@ export class MediaItemService {
     constructor(
         @InjectRepository(MediaItem) private readonly repository: Repository<MediaItem>,
         @InjectRepository(Genre) private readonly genreRepository: Repository<Genre>,
+        private readonly events: EventEmitter2,
     ) {}
 
     /** Un elemento lo propone un usuario (PENDING) o lo crea un administrador (APPROVED). */
@@ -44,7 +47,11 @@ export class MediaItemService {
             approvalStatus: user.role === ADMIN_ROLE ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
             rejectionReason: null,
         });
-        return this.saveOrConflict(item);
+        const saved = await this.saveOrConflict(item);
+        if (saved.approvalStatus === ApprovalStatus.PENDING) {
+            await this.events.emitAsync('moderation.queue.refresh', { kind: 'MEDIA' });
+        }
+        return saved;
     }
 
     /** Catálogo aprobado más los elementos pendientes propuestos por quien consulta, con filtros y paginación. */
@@ -135,7 +142,17 @@ export class MediaItemService {
         }
         item.approvalStatus = dto.approvalStatus;
         item.rejectionReason = dto.approvalStatus === ApprovalStatus.REJECTED ? (reason ?? null) : null;
-        return this.repository.save(item);
+        const saved = await this.repository.save(item);
+        await this.events.emitAsync('media.moderated', {
+            eventId: randomUUID(),
+            mediaItemId: saved.id,
+            creatorId: saved.createdBy.id,
+            title: saved.title,
+            approvalStatus: saved.approvalStatus,
+            ...(saved.rejectionReason ? { rejectionReason: saved.rejectionReason } : {}),
+        });
+        await this.events.emitAsync('moderation.queue.refresh', { kind: 'MEDIA' });
+        return saved;
     }
 
     async remove(id: string): Promise<{ message: string }> {

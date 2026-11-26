@@ -19,6 +19,7 @@ describe('UserService', () => {
     let service: UserService;
     let repo: { findAndCount: Mock; findOne: Mock; create: Mock; save: Mock; merge: Mock; remove: Mock };
     let roleService: Mocked<Pick<RoleService, 'findOne'>>;
+    const events = { emit: vi.fn(), emitAsync: vi.fn().mockResolvedValue([]) };
 
     const userRole = { id: 1, name: 'USER' };
     const adminRole = { id: 3, name: 'ADMIN' };
@@ -35,7 +36,7 @@ describe('UserService', () => {
         };
         roleService = { findOne: vi.fn() };
         const config = { get: vi.fn().mockReturnValue('4') };
-        service = new UserService(repo as never, roleService as unknown as RoleService, config as unknown as ConfigService);
+        service = new UserService(repo as never, roleService as unknown as RoleService, config as unknown as ConfigService, events as never);
     });
 
     describe('findAll', () => {
@@ -149,6 +150,10 @@ describe('UserService', () => {
             const saved = await service.update(7, { roleId: 3 });
 
             expect(saved.role).toBe(adminRole);
+            expect(events.emitAsync).toHaveBeenCalledWith(
+                'account.updated',
+                expect.objectContaining({ userId: 7, role: 'ADMIN' }),
+            );
         });
 
         it('assignRole asigna el rol y guarda', async () => {
@@ -159,6 +164,10 @@ describe('UserService', () => {
 
             expect(saved.role).toBe(adminRole);
             expect(repo.save).toHaveBeenCalledTimes(1);
+            expect(events.emitAsync).toHaveBeenCalledWith(
+                'account.updated',
+                expect.objectContaining({ userId: 7, role: 'ADMIN' }),
+            );
         });
     });
 
@@ -172,6 +181,10 @@ describe('UserService', () => {
             repo.findOne.mockResolvedValue(dbUser());
             const saved = await service.setStatus(7, false, 1);
             expect(saved.isActive).toBe(false);
+            expect(events.emitAsync).toHaveBeenCalledWith(
+                'account.deactivated',
+                expect.objectContaining({ userId: 7 }),
+            );
         });
 
         it('permite reactivar la propia cuenta', async () => {

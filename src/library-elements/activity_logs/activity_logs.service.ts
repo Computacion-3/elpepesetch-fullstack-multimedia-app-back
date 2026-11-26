@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActivityLog } from '../entities/activity_log.entity.js';
 import { CreateActivityLogDto } from './dto/create-activity_log.dto.js';
 import { ActivityQueryDto } from './dto/activity-query.dto.js';
 import { ActivityAction } from '../enums/library.enums.js';
+import type { ActivityCreatedEvent } from './activity-log.events.js';
 
 export interface ActivityListResponse {
     data: ActivityLog[];
@@ -21,6 +23,7 @@ export class ActivityLogsService {
     constructor(
         @InjectRepository(ActivityLog)
         private readonly repository: Repository<ActivityLog>,
+        private readonly events: EventEmitter2,
     ) {}
 
     /**
@@ -35,7 +38,16 @@ export class ActivityLogsService {
             mediaItem: dto.mediaItemId ? { id: dto.mediaItemId } : null,
             metadata: dto.metadata ?? null,
         });
-        return this.repository.save(activity);
+        const saved = await this.repository.save(activity);
+        const event: ActivityCreatedEvent = {
+            userId,
+            activityId: saved.id,
+            action: saved.action,
+            ...(saved.mediaItem ? { mediaItemId: saved.mediaItem.id } : {}),
+            createdAt: saved.createdAt,
+        };
+        await this.events.emitAsync('activity.created', event);
+        return saved;
     }
 
     /**
@@ -45,7 +57,11 @@ export class ActivityLogsService {
         return this.logActivity(userId, dto);
     }
 
-    async findAll(userId: number, query: ActivityQueryDto = new ActivityQueryDto()): Promise<ActivityListResponse> {
+    async findAll(
+        userId: number,
+        query: ActivityQueryDto = new ActivityQueryDto(),
+        loadMediaItem = false,
+    ): Promise<ActivityListResponse> {
         this.requireUserId(userId);
         const page = query.page;
         const limit = query.limit;
@@ -54,6 +70,7 @@ export class ActivityLogsService {
             order: { createdAt: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
+            ...(loadMediaItem ? { relations: { mediaItem: true } } : {}),
         });
         return {
             data,

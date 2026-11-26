@@ -36,8 +36,10 @@ describe('MediaItemService', () => {
     let repo: { create: Mock; save: Mock; findAndCount: Mock; findOne: Mock; merge: Mock; remove: Mock };
     let genres: { findBy: Mock };
     let service: MediaItemService;
+    const events = { emit: vi.fn(), emitAsync: vi.fn().mockResolvedValue([]) };
 
     beforeEach(() => {
+        events.emitAsync.mockClear();
         repo = {
             create: vi.fn((data) => ({ ...data })),
             save: vi.fn(async (m) => m),
@@ -47,7 +49,7 @@ describe('MediaItemService', () => {
             remove: vi.fn(),
         };
         genres = { findBy: vi.fn().mockResolvedValue([genre]) };
-        service = new MediaItemService(repo as never, genres as never);
+        service = new MediaItemService(repo as never, genres as never, events as never);
     });
 
     describe('create', () => {
@@ -152,6 +154,29 @@ describe('MediaItemService', () => {
                 approvalStatus: ApprovalStatus.APPROVED,
                 rejectionReason: null,
             });
+        });
+
+        it('emite moderación solo después de guardar el cambio', async () => {
+            repo.findOne.mockResolvedValue(item());
+            repo.save.mockImplementation(async (value) => {
+                expect(events.emitAsync).not.toHaveBeenCalled();
+                return value;
+            });
+            await service.setApproval('m-1', { approvalStatus: ApprovalStatus.APPROVED });
+            expect(events.emitAsync).toHaveBeenCalledWith('media.moderated', expect.objectContaining({
+                mediaItemId: 'm-1',
+                creatorId: 7,
+                approvalStatus: ApprovalStatus.APPROVED,
+            }));
+        });
+
+        it('does not emit moderation when persistence fails', async () => {
+            repo.findOne.mockResolvedValue(item());
+            const failure = new Error('database unavailable');
+            repo.save.mockRejectedValue(failure);
+
+            await expect(service.setApproval('m-1', { approvalStatus: ApprovalStatus.APPROVED })).rejects.toBe(failure);
+            expect(events.emitAsync).not.toHaveBeenCalled();
         });
 
         it('rechaza con motivo', async () => {

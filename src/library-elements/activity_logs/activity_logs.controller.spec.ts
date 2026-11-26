@@ -8,7 +8,7 @@ describe('ActivityLogsController', () => {
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             controllers: [ActivityLogsController],
-            providers: [ActivityLogsService, { provide: 'ActivityLogRepository', useValue: {} }],
+            providers: [{ provide: ActivityLogsService, useValue: { findAll: vi.fn() } }],
         }).compile();
 
         controller = module.get<ActivityLogsController>(ActivityLogsController);

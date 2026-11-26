@@ -2,6 +2,42 @@
 
 _Computación en Internet III_
 
+## Biblioteca en GraphQL y tiempo real
+
+### Activity Logs en GraphQL y tiempo real
+
+`ActivityLogsResolver.myActivity(page, limit)` reutiliza el guard global, `@CurrentUser()` y `ActivityLogsService.findAll()`. Mantiene el filtro de usuario, orden descendente y paginación REST. Las lecturas GraphQL incluyen la relación `mediaItem` para que el cliente pueda pedir los campos disponibles sin cambiar la respuesta REST. No existen mutaciones para manipular el historial.
+
+Después de persistir `logActivity()`, el servicio emite `activity.created` con el identificador del propietario, que se elimina al preparar el payload público. `ActivityEventsListener` convierte el evento interno a `realtime.direct`, y `RealtimeGateway` lo entrega a `user:{id}`. El payload contiene `activityId`, `action`, `mediaItemId` opcional y `createdAt` serializado. Las operaciones de Library, Lists y Review conservan el punto central de registro y no publican eventos individuales.
+
+La conexión Socket.IO sigue usando tickets de un solo uso obtenidos con `POST /auth/socket-token`; cada conexión y reconexión requiere uno nuevo.
+
+Para Activity Logs se añadieron pruebas unitarias del servicio, resolver y listener, además de una prueba E2E en la suite de tickets Socket.IO que cubre consulta, paginación, orden, aislamiento y eventos de Library y Lists. En esta revisión, `tsc -p tsconfig.build.json --noEmit`, `oxlint src/ test/` y `git diff --check` finalizaron correctamente. Vitest y `nest build` no pudieron ejecutarse con el Node 20 disponible porque dependencias ESM fallan al cargarse desde CommonJS. Las E2E tampoco se ejecutaron, por lo que sus resultados siguen pendientes y requieren una base aislada con `POSTGRES_DB` que contenga `test`.
+
+### GraphQL de la biblioteca
+
+El endpoint `POST /graphql` usa code-first y expone `myLibrary`, `libraryEntry`, `addToLibrary`, `updateLibraryEntry` y `removeLibraryEntry`. `LibraryEntriesResolver` convierte los inputs validados a los DTOs REST existentes y delega las cinco operaciones a `LibraryEntriesService`, que conserva las reglas de estado, progreso, calificación, duplicidad y propiedad.
+
+El `JwtAuthGuard` y `PermissionsGuard` globales operan con la petición de `GqlExecutionContext`; `CurrentUser` extrae de allí la misma identidad que usa REST. Los errores HTTP de Nest se conservan y se publican con `extensions.code` y `extensions.status`. La introspección usa `GRAPHQL_INTROSPECTION`; la profundidad máxima permitida es 10.
+
+### GraphQL de User Lists
+
+`UserListsResolver` expone `myLists`, `publicLists`, `userList`, `createUserList`, `updateUserList`, `deleteUserList`, `addItemToList` y `removeItemFromList`. Convierte los inputs a los DTOs existentes y delega cada operación en `UserListsService`. Los guards globales extraen la misma sesión que REST; el servicio conserva la propiedad, privacidad, unicidad y aprobación de elementos. `UserList` expone un propietario mínimo (`id`, `username`) y reutiliza `LibraryMediaItemType` para sus elementos. `publicLists` mantiene la respuesta paginada `{ data, meta }`.
+
+### Socket.IO y notificaciones
+
+El gateway Socket.IO escucha en `/socket.io`. El frontend solicita un ticket de un solo uso en `POST /auth/socket-token` y lo envía como `auth.token`. El ticket conserva la sesión original, así `AuthService.verifySocketToken` comprueba firma, expiración, revocación de sesión y de ticket, usuario activo y permisos vigentes. El middleware asigna `user:{id}` y agrega `moderators` según el rol leído de la base de datos. Logout y expiración desconectan solo los sockets de la sesión asociada. Un cambio de rol actualiza la pertenencia a `moderators`; una desactivación envía `account.deactivated` y cierra las conexiones del usuario.
+
+Los servicios emiten eventos internos después de persistir. `RealtimeGateway` distribuye los eventos. `ModerationQueueListener` calcula los contadores desde las entidades `MediaItem` y `ReviewReport`. `NotificationEventsListener` persiste los avisos de moderación, ocultamiento y cambio de rol antes de distribuirlos. `GET /notifications` filtra por usuario y permite `isRead`, página y límite; `PATCH /notifications/:id/read` solo actualiza avisos propios. El `eventId` único hace idempotente el guardado de un mismo evento.
+
+Los payloads disponibles son `media.moderated`, `moderation.queue.changed`, `review.visibility.changed`, `account.updated` y `account.deactivated`; se describen con ejemplos de cliente en el README. HTTP y Socket.IO usan `CORS_ORIGIN` como lista separada por coma.
+
+`UserListsService` publica un evento interno `user-list.changed` después de completar la persistencia y, al crear una lista, después de registrar su actividad. `UserListEventsListener` lo convierte al canal `realtime.direct` existente, que `RealtimeGateway` distribuye únicamente a `user:{ownerId}`. Los eventos de salida son `list.created`, `list.updated`, `list.deleted`, `list.item.added` y `list.item.removed`. El servicio no depende del gateway; REST y GraphQL usan las mismas operaciones y producen un solo evento por cambio exitoso. Un update sin cambios no emite evento.
+
+### Verificación de la ampliación
+
+La verificación previa de Library, Auth, notificaciones y Realtime pasó con Node 24, con build y lint correctos, 206 pruebas unitarias en 29 suites y 80 pruebas e2e en cinco suites sobre la base aislada `mydatabase_test`. Para User Lists se añadieron pruebas unitarias del resolver, del listener y del orden/ausencia de eventos, una suite e2e GraphQL con paridad REST y un caso e2e Socket.IO para los cinco eventos y aislamiento de salas. En esta sesión, `oxlint src/ test/` y `tsc -p tsconfig.build.json --noEmit` finalizaron correctamente. Las pruebas Vitest y `nest build` no pudieron completarse con el Node 20 de Visual Studio, que falla al cargar dependencias ESM del proyecto; Node 24 no está disponible en el PATH de esta sesión. Las pruebas nuevas y las E2E quedan pendientes. Las E2E truncan tablas y deben apuntar exclusivamente a una base de pruebas.
+
 ## Capa de Seguridad y usuarios
 
 ### Alcance

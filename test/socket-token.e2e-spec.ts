@@ -1,41 +1,15 @@
 import type { AddressInfo } from 'node:net';
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { Inject, INestApplication } from '@nestjs/common';
-import {
-    ConnectedSocket,
-    OnGatewayInit,
-    SubscribeMessage,
-    WebSocketGateway,
-} from '@nestjs/websockets';
-import type { Server, Socket } from 'socket.io';
+import { INestApplication } from '@nestjs/common';
+import type { Server } from 'socket.io';
 import { io, type Socket as ClientSocket } from 'socket.io-client';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { AppModule } from './../src/app.module.js';
-import { AuthModule } from './../src/auth/auth.module.js';
-import { AuthService } from './../src/auth/auth.service.js';
-import { createSocketAuthMiddleware, getSocketUser } from './../src/auth/socket/socket-auth.middleware.js';
-
-/**
- * Gateway mínimo SOLO para esta prueba: muestra cómo debe usar el middleware el gateway real.
- * `whoami` devuelve el usuario que el middleware dejó en socket.data.user.
- */
-@WebSocketGateway()
-class ProbeGateway implements OnGatewayInit {
-    constructor(@Inject(AuthService) private readonly authService: AuthService) {}
-
-    afterInit(server: Server) {
-        server.use(createSocketAuthMiddleware(this.authService));
-    }
-
-    @SubscribeMessage('whoami')
-    whoami(@ConnectedSocket() client: Socket) {
-        return { user: getSocketUser(client), rooms: [...client.rooms] };
-    }
-}
+import { RealtimeGateway } from './../src/realtime/realtime.gateway.js';
 
 // Requiere PostgreSQL (variables POSTGRES_* / DB_HOST) y JWT_SECRET en el entorno.
 describe('Ticket del WebSocket (e2e)', () => {
@@ -70,25 +44,23 @@ describe('Ticket del WebSocket (e2e)', () => {
             throw new Error('Los e2e solo se ejecutan si POSTGRES_DB contiene "test" (se vacían las tablas).');
         }
 
-        const moduleFixture: TestingModule = await Test.createTestingModule({
-            imports: [AppModule, AuthModule],
-            providers: [ProbeGateway],
-        }).compile();
+        const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
         app = moduleFixture.createNestApplication();
         await app.listen(0);
         baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
 
         const db = app.get(DataSource);
-        await db.query(`TRUNCATE users, role_permissions, permissions, roles, revoked_tokens RESTART IDENTITY CASCADE`);
-        await db.query(`INSERT INTO roles (name, description) VALUES ('USER','u'),('ADMIN','a')`);
-        await db.query(`INSERT INTO permissions (name, description) VALUES ('users:manage','m')`);
-        await db.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES (2, 1)`);
+        await db.query(`TRUNCATE users, role_permissions, permissions, roles, revoked_tokens, genres RESTART IDENTITY CASCADE`);
+        await db.query(`INSERT INTO roles (name, description) VALUES ('USER','u'),('ADMIN','a'),('MODERATOR','m')`);
+        await db.query(`INSERT INTO permissions (name, description) VALUES ('users:manage','m'),('catalog:create','c'),('catalog:moderate','m')`);
+        await db.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES (2, 1), (1, 2), (3, 3), (2, 3)`);
         const hash = bcrypt.hashSync('Secreta123', 4);
         await db.query(
             `INSERT INTO users (username, email, password_hash, role_id) VALUES
-                ('admin','admin@test.com',$1,2), ('pepe','pepe@test.com',$1,1)`,
+                ('admin','admin@test.com',$1,2), ('pepe','pepe@test.com',$1,1), ('moderator','moderator@test.com',$1,3)`,
             [hash],
         );
+        await db.query(`INSERT INTO genres (id, name) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Test')`);
     });
 
     afterEach(() => {
@@ -130,19 +102,259 @@ describe('Ticket del WebSocket (e2e)', () => {
     });
 
     describe('handshake de Socket.IO', () => {
-        it('con un ticket válido conecta y el gateway conoce al usuario, sus permisos y su sala', async () => {
-            const client = await connect(await socketTicket(await login('admin@test.com', 'Secreta123')));
+        it('conecta y el servidor asigna las salas según el rol vigente', async () => {
+            const admin = await connect(await socketTicket(await login('admin@test.com', 'Secreta123')));
+            const user = await connect(await socketTicket(await login('pepe@test.com', 'Secreta123')));
+            const moderator = await connect(await socketTicket(await login('moderator@test.com', 'Secreta123')));
+            const server = (app.get(RealtimeGateway) as unknown as { server: Server }).server;
+            const adminSockets = await server.in(admin.id!).fetchSockets();
+            const userSockets = await server.in(user.id!).fetchSockets();
+            const moderatorSockets = await server.in(moderator.id!).fetchSockets();
+            expect(adminSockets[0]?.rooms).toContain('user:1');
+            expect(adminSockets[0]?.rooms).toContain('moderators');
+            expect(userSockets[0]?.rooms).toContain('user:2');
+            expect(userSockets[0]?.rooms).not.toContain('moderators');
+            expect(moderatorSockets[0]?.rooms).toContain('moderators');
+        });
 
-            const answer = await client.emitWithAck('whoami');
-
-            expect(answer.user).toEqual({
-                id: 1,
-                email: 'admin@test.com',
-                username: 'admin',
-                role: 'ADMIN',
-                permissions: ['users:manage'],
+        it('notifica al creador correcto después de moderar y persiste el aviso', async () => {
+            const creatorToken = await login('pepe@test.com', 'Secreta123');
+            const creator = await connect(await socketTicket(creatorToken));
+            const moderator = await connect(await socketTicket(await login('moderator@test.com', 'Secreta123')));
+            const moderation = new Promise<Record<string, unknown>>((resolve) => creator.once('media.moderated', resolve));
+            const queue = new Promise<Record<string, unknown>>((resolve) => moderator.once('moderation.queue.changed', resolve));
+            const created = await request(app.getHttpServer())
+                .post('/media')
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .send({ title: 'Realtime test', type: 'GAME', releaseYear: 2025, creator: 'Studio', genreIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'] })
+                .expect(201);
+            expect(await queue).toMatchObject({ kind: 'MEDIA', pendingMedia: 1, openReports: 0 });
+            await request(app.getHttpServer())
+                .patch(`/media/${created.body.id}/approval`)
+                .set('Authorization', `Bearer ${await login('moderator@test.com', 'Secreta123')}`)
+                .send({ approvalStatus: 'REJECTED', rejectionReason: 'Duplicado' })
+                .expect(200);
+            expect(await moderation).toEqual({
+                mediaItemId: created.body.id,
+                title: 'Realtime test',
+                approvalStatus: 'REJECTED',
+                rejectionReason: 'Duplicado',
             });
-            expect(answer.rooms).toContain('user:1');
+            const notifications = await request(app.getHttpServer())
+                .get('/notifications')
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200);
+            expect(notifications.body.data).toHaveLength(1);
+            expect(notifications.body.data[0]).toMatchObject({ type: 'MEDIA_MODERATED', payload: { mediaItemId: created.body.id } });
+        });
+
+        it('emite cada evento de lista una vez y solo en la sala de su propietario', async () => {
+            const ownerToken = await login('pepe@test.com', 'Secreta123');
+            const owner = await connect(await socketTicket(ownerToken));
+            const other = await connect(await socketTicket(await login('admin@test.com', 'Secreta123')));
+            const eventNames = [
+                'list.created',
+                'list.updated',
+                'list.deleted',
+                'list.item.added',
+                'list.item.removed',
+            ];
+            const received: Record<string, unknown[]> = Object.fromEntries(eventNames.map((name) => [name, []]));
+            const receivedByOther: string[] = [];
+            for (const name of eventNames) {
+                owner.on(name, (payload: unknown) => received[name].push(payload));
+                other.on(name, () => receivedByOther.push(name));
+            }
+            const nextEvent = (name: string) =>
+                new Promise<unknown>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error(`Timeout waiting for ${name}`)), 2000);
+                    owner.once(name, (payload: unknown) => {
+                        clearTimeout(timeout);
+                        resolve(payload);
+                    });
+                });
+
+            const graphqlCreatedEvent = nextEvent('list.created');
+            const created = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: 'mutation { createUserList(input: { name: "Realtime list" }) { id } }' });
+            expect(created.body.errors).toBeUndefined();
+            const listId = created.body.data.createUserList.id as string;
+            await graphqlCreatedEvent;
+
+            const restCreatedEvent = nextEvent('list.created');
+            const createdRest = await request(app.getHttpServer())
+                .post('/lists')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ name: 'Realtime REST list' })
+                .expect(201);
+            await restCreatedEvent;
+
+            const updatedEvent = nextEvent('list.updated');
+            await request(app.getHttpServer())
+                .patch(`/lists/${listId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ description: 'Updated through REST' })
+                .expect(200);
+            await updatedEvent;
+
+            const [{ id: mediaItemId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ('List socket media', 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+            );
+            const addedEvent = nextEvent('list.item.added');
+            const added = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({
+                    query: 'mutation($listId: ID!, $input: AddListItemInput!) { addItemToList(listId: $listId, input: $input) { id } }',
+                    variables: { listId, input: { mediaItemId } },
+                });
+            expect(added.body.errors).toBeUndefined();
+            await addedEvent;
+
+            const duplicate = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({
+                    query: 'mutation($listId: ID!, $input: AddListItemInput!) { addItemToList(listId: $listId, input: $input) { id } }',
+                    variables: { listId, input: { mediaItemId } },
+                });
+            expect(duplicate.body.errors[0].extensions).toMatchObject({ code: 'CONFLICT', status: 409 });
+
+            const removedItemEvent = nextEvent('list.item.removed');
+            await request(app.getHttpServer())
+                .delete(`/lists/${listId}/items/${mediaItemId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .expect(204);
+            await removedItemEvent;
+            const deletedRestEvent = nextEvent('list.deleted');
+            await request(app.getHttpServer())
+                .delete(`/lists/${listId}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .expect(204);
+            await deletedRestEvent;
+            const deletedGraphqlEvent = nextEvent('list.deleted');
+            const deletedGraphql = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: 'mutation($id: ID!) { deleteUserList(id: $id) }', variables: { id: createdRest.body.id } });
+            expect(deletedGraphql.body.data.deleteUserList).toBe(true);
+            await deletedGraphqlEvent;
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(received['list.created']).toHaveLength(2);
+            expect(received['list.created'][0]).toMatchObject({ name: 'Realtime list', visibility: 'PRIVATE' });
+            expect(received['list.created'][1]).toMatchObject({ name: 'Realtime REST list', visibility: 'PRIVATE' });
+            expect(received['list.updated']).toHaveLength(1);
+            expect(received['list.updated'][0]).toMatchObject({ listId, description: 'Updated through REST' });
+            expect(received['list.item.added']).toHaveLength(1);
+            expect(received['list.item.added'][0]).toMatchObject({ listId, mediaItemId });
+            expect(received['list.item.removed']).toEqual([{ listId, mediaItemId }]);
+            expect(received['list.deleted']).toEqual([{ listId }, { listId: createdRest.body.id }]);
+            expect(receivedByOther).toEqual([]);
+        });
+
+        it('consulta actividad propia y notifica una vez a su propietario desde Library y Lists', async () => {
+            const unauthenticated = await request(app.getHttpServer())
+                .post('/graphql')
+                .send({ query: '{ myActivity { data { id } } }' });
+            expect(unauthenticated.body.errors[0].extensions).toMatchObject({ code: 'UNAUTHENTICATED', status: 401 });
+
+            const ownerToken = await login('pepe@test.com', 'Secreta123');
+            const otherToken = await login('admin@test.com', 'Secreta123');
+            const owner = await connect(await socketTicket(ownerToken));
+            const other = await connect(await socketTicket(otherToken));
+            const received: Record<string, unknown>[] = [];
+            const receivedByOther: Record<string, unknown>[] = [];
+            owner.on('activity.created', (payload: Record<string, unknown>) => received.push(payload));
+            other.on('activity.created', (payload: Record<string, unknown>) => receivedByOther.push(payload));
+
+            const activityQuery = `query($page: Int, $limit: Int) {
+                myActivity(page: $page, limit: $limit) {
+                    data { id action metadata createdAt mediaItem { id title type } }
+                    meta { total page limit totalPages }
+                }
+            }`;
+            const previousOwnerHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+            const previousOtherHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${otherToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+
+            const [{ id: mediaItemId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ($1, 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+                [`Activity socket media ${Date.now()}`],
+            );
+            const libraryEvent = new Promise<Record<string, unknown>>((resolve) =>
+                owner.once('activity.created', resolve),
+            );
+            await request(app.getHttpServer())
+                .post('/library')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ mediaItemId })
+                .expect(201);
+            expect(await libraryEvent).toMatchObject({ action: 'ENTRY_ADDED', mediaItemId });
+
+            const listEvent = new Promise<Record<string, unknown>>((resolve) => owner.once('activity.created', resolve));
+            await request(app.getHttpServer())
+                .post('/lists')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ name: `Activity list ${Date.now()}` })
+                .expect(201);
+            expect(await listEvent).toMatchObject({ action: 'LIST_CREATED' });
+
+            const ownerHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+            const otherHistory = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${otherToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+            const paginated = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: activityQuery, variables: { page: 1, limit: 1 } });
+
+            expect(ownerHistory.body.data.myActivity.meta.total).toBe(previousOwnerHistory.body.data.myActivity.meta.total + 2);
+            expect(ownerHistory.body.data.myActivity.data.map((activity: { action: string }) => activity.action)).toEqual(
+                expect.arrayContaining(['ENTRY_ADDED', 'LIST_CREATED']),
+            );
+            expect(ownerHistory.body.data.myActivity.data[0].mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
+            const dates = ownerHistory.body.data.myActivity.data.map((activity: { createdAt: string }) =>
+                new Date(activity.createdAt).getTime(),
+            );
+            expect(dates.every((date: number, index: number) => index === 0 || dates[index - 1] >= date)).toBe(true);
+            expect(paginated.body.data.myActivity.meta).toMatchObject({
+                total: ownerHistory.body.data.myActivity.meta.total,
+                page: 1,
+                limit: 1,
+                totalPages: ownerHistory.body.data.myActivity.meta.total,
+            });
+            expect(paginated.body.data.myActivity.data).toHaveLength(1);
+            expect(otherHistory.body.data.myActivity.meta.total).toBe(previousOtherHistory.body.data.myActivity.meta.total);
+
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(received).toHaveLength(2);
+            expect(receivedByOther).toEqual([]);
+
+            const invalidPage = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: '{ myActivity(page: 0) { meta { page } } }' });
+            expect(invalidPage.body.errors[0].extensions).toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+
+            const userIdFilter = await request(app.getHttpServer())
+                .post('/graphql')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ query: '{ myActivity(userId: 1) { data { id } } }' });
+            expect(userIdFilter.body.errors[0].message).toContain('Unknown argument "userId"');
         });
 
         it('el mismo ticket no se puede usar dos veces', async () => {
@@ -156,6 +368,17 @@ describe('Ticket del WebSocket (e2e)', () => {
             await expect(connect()).rejects.toThrow('Falta el ticket del socket');
         });
 
+        it('rechaza un ticket JWT inválido', async () => {
+            await expect(connect('invalid.jwt.token')).rejects.toThrow();
+        });
+
+        it('rechaza un ticket cuyo token de sesión fue revocado antes del handshake', async () => {
+            const session = await login('pepe@test.com', 'Secreta123');
+            const ticket = await socketTicket(session);
+            await request(app.getHttpServer()).post('/auth/logout').set('Authorization', `Bearer ${session}`).expect(204);
+            await expect(connect(ticket)).rejects.toThrow('La sesión del socket fue revocada');
+        });
+
         it('el token de sesión no sirve como ticket', async () => {
             await expect(connect(await login('admin@test.com', 'Secreta123'))).rejects.toThrow(
                 'El ticket del socket es inválido o expiró',
@@ -167,6 +390,31 @@ describe('Ticket del WebSocket (e2e)', () => {
             await app.get(DataSource).query(`UPDATE users SET is_active = false WHERE email = 'pepe@test.com'`);
 
             await expect(connect(ticket)).rejects.toThrow('La cuenta está desactivada');
+        });
+
+        it('logout desconecta los sockets asociados a esa sesión', async () => {
+            await app.get(DataSource).query(`UPDATE users SET is_active = true WHERE email = 'pepe@test.com'`);
+            const session = await login('pepe@test.com', 'Secreta123');
+            const client = await connect(await socketTicket(session));
+            const closed = new Promise<void>((resolve) => client.once('disconnect', () => resolve()));
+            await request(app.getHttpServer()).post('/auth/logout').set('Authorization', `Bearer ${session}`).expect(204);
+            await closed;
+            expect(client.connected).toBe(false);
+        });
+
+        it('desactivar una cuenta emite el cierre y desconecta sus sockets', async () => {
+            await app.get(DataSource).query(`UPDATE users SET is_active = true WHERE email = 'pepe@test.com'`);
+            const session = await login('pepe@test.com', 'Secreta123');
+            const client = await connect(await socketTicket(session));
+            const deactivated = new Promise<void>((resolve) => client.once('account.deactivated', () => resolve()));
+            const closed = new Promise<void>((resolve) => client.once('disconnect', () => resolve()));
+            await request(app.getHttpServer())
+                .patch('/users/2/status')
+                .set('Authorization', `Bearer ${await login('admin@test.com', 'Secreta123')}`)
+                .send({ isActive: false })
+                .expect(200);
+            await Promise.all([deactivated, closed]);
+            expect(client.connected).toBe(false);
         });
     });
 });

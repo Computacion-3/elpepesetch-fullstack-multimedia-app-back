@@ -8,4 +8,6 @@ export interface SocketUser {
     username: string;
     role: string;
     permissions: string[];
+    sessionJti: string;
+    tokenExp: number;
 }

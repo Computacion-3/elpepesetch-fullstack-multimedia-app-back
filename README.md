@@ -88,29 +88,46 @@ Todas las rutas requieren `Authorization: Bearer <token>`, salvo registro, login
 | Logout | `POST /auth/logout` y luego `GET /auth/me` con el mismo token | 204 y después 401: el token queda revocado |
 | Ticket del WebSocket | `POST /auth/socket-token` (o la mutation `socketToken`) con sesión | 200 con `{ token, expiresIn: 60 }`. Ese ticket abre una conexión de Socket.IO una sola vez y como Bearer en HTTP responde 401 (ver abajo) |
 
-#### Autenticación del WebSocket (handshake con JWT)
+#### Socket.IO y notificaciones
 
-El navegador no tiene el JWT de sesión (el frontend lo guarda en una cookie httpOnly), así que el socket se autentica con un **ticket**:
-
-1. El frontend, en el servidor, llama a `POST /auth/socket-token` con el token de sesión y recibe un JWT con `typ: 'socket'`, audiencia `socket`, `jti` propio y 60 s de vida.
-2. El cliente se conecta con `io(url, { auth: { token } })`.
-3. El gateway valida el handshake con `createSocketAuthMiddleware(authService)` (`src/auth/socket/socket-auth.middleware.ts`): verifica firma, audiencia y vigencia, **consume el `jti`** (se guarda en `revoked_tokens`; reutilizarlo da 401), lee rol y permisos de la BD y rechaza cuentas desactivadas. El usuario queda en `socket.data.user` (`getSocketUser(socket)`) y se une a la sala `user:<id>` (`userRoom(id)`).
-4. `JwtStrategy` rechaza los tickets en HTTP: no sirven como `Bearer`.
-
-Uso en un gateway (importar `AuthModule`, que exporta `AuthService`):
+Con el `.env` de ejemplo, Socket.IO se conecta a `http://localhost:3002` con el path `/socket.io`. En despliegue, `NEXT_PUBLIC_WS_URL` debe ser la URL base del backend. Socket.IO recibe el ticket en el handshake, nunca en query string:
 
 ```ts
-@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL, credentials: true } })
-export class NotificationsGateway implements OnGatewayInit {
-    constructor(private readonly authService: AuthService) {}
-
-    afterInit(server: Server) {
-        server.use(createSocketAuthMiddleware(this.authService));
-    }
-}
+const socket = io(process.env.NEXT_PUBLIC_WS_URL, {
+  // Se ejecuta en cada conexión/reconexión y solicita un ticket de un solo uso.
+  auth: (callback) => {
+    void getFreshSocketTicket()
+      .then(({ token }) => callback({ token }))
+      .catch(() => callback({ token: '' }));
+  },
+});
 ```
 
-Para emitir a un usuario concreto: `server.to(userRoom(userId)).emit('evento', datos)`. Si el cliente se reconecta, debe pedir un ticket nuevo (ver `getSocketToken()` en el frontend).
+El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada conexión o reconexión necesita un ticket nuevo. Auth valida la firma, expiración, uso único, revocación de la sesión original, estado activo del usuario y rol/permisos actuales desde la base de datos. Logout desconecta los sockets de esa sesión y la expiración de la sesión cierra el socket.
+
+`getFreshSocketTicket` es una función del BFF de Next.js. Debe llamar a `POST /auth/socket-token` con la sesión httpOnly y devolver `{ token }` al navegador. Cada reconexión solicita un ticket nuevo. El servidor asigna `user:{id}` a cada usuario y `moderators` a `MODERATOR` y `ADMIN`. El cliente no puede solicitar salas. El origen se controla con `CORS_ORIGIN`.
+
+| Evento | Destino | Payload |
+| --- | --- | --- |
+| `media.moderated` | `user:{creatorId}` | `{ mediaItemId, title, approvalStatus, rejectionReason? }` |
+| `moderation.queue.changed` | `moderators` | `{ kind: 'MEDIA' \| 'REPORT', pendingMedia, openReports }` |
+| `review.visibility.changed` | `user:{authorId}` | `{ reviewId, mediaItemId, isHidden: true, hiddenReason }` para `HIDE` |
+| `account.updated` | `user:{id}` | `{ role }` |
+| `account.deactivated` | `user:{id}` | `{}` y cierre de sus sockets |
+| `list.created` | `user:{ownerId}` | `{ listId, name, visibility, createdAt }` |
+| `list.updated` | `user:{ownerId}` | `{ listId, name, description, visibility, updatedAt }` |
+| `list.deleted` | `user:{ownerId}` | `{ listId }` |
+| `list.item.added` | `user:{ownerId}` | `{ listId, mediaItemId, addedAt }` |
+| `list.item.removed` | `user:{ownerId}` | `{ listId, mediaItemId }` |
+
+Los eventos de catálogo, reporte, rol y cuenta se producen después de guardar los cambios. Los avisos de moderación, ocultamiento y cambio de rol también se persisten y pueden consultarse al reconectar.
+
+```ts
+socket.on('media.moderated', (payload) => console.log(payload));
+socket.on('moderation.queue.changed', (payload) => console.log(payload));
+```
+
+Para probarlo, conecta dos clientes como usuario y moderador. Propón un título con `POST /media` como usuario y luego apruébalo o recházalo con `PATCH /media/:id/approval` como moderador. El usuario recibe `media.moderated`; el moderador ve los contadores con `moderation.queue.changed`.
 
 ### 2. Usuarios, roles y permisos (autorización)
 
@@ -142,6 +159,99 @@ Para emitir a un usuario concreto: `server.to(userRoom(userId)).emit('evento', d
 | Listas | `POST /lists`, `POST /lists/:id/items`, `GET /lists/public` | Listas propias; las públicas de otros muestran el username del dueño; una privada ajena responde 404 |
 | Historial | `GET /activity?page=1&limit=20` | Actividad propia, más reciente primero |
 
+La biblioteca también está disponible en GraphQL en `http://localhost:3002/graphql` (o `POST /graphql` en la URL base desplegada). Las cinco operaciones requieren el mismo `Authorization: Bearer <accessToken>` que REST y delegan en `LibraryEntriesService`.
+
+```graphql
+query MyLibrary($filter: LibraryFilterInput) {
+  myLibrary(filter: $filter) {
+    data {
+      id status progress rating isFavorite notes startedAt completedAt addedAt updatedAt
+      mediaItem {
+        id title type coverUrl releaseYear creator pages durationMinutes platform
+        averageRating ratingsCount genres { id name }
+      }
+    }
+    meta { total page limit totalPages }
+  }
+}
+```
+
+`LibraryFilterInput` admite `status`, `isFavorite`, `type`, `genreId`, `q`, `year`, `sortBy`, `order`, `page` y `limit`.
+
+```graphql
+mutation AddEntry($input: AddLibraryEntryInput!) {
+  addToLibrary(input: $input) { id status mediaItem { id title } }
+}
+
+mutation UpdateEntry($id: ID!, $input: UpdateLibraryEntryInput!) {
+  updateLibraryEntry(id: $id, input: $input) { id status progress rating isFavorite }
+}
+
+mutation RemoveEntry($id: ID!) {
+  removeLibraryEntry(id: $id)
+}
+```
+
+También están disponibles `libraryEntry(id: ID!)` y `myLibrary(filter: LibraryFilterInput)`. GraphQL devuelve errores con `extensions.code` y `extensions.status`, por ejemplo `UNAUTHENTICATED`/401, `FORBIDDEN`/403, `NOT_FOUND`/404 y `CONFLICT`/409. La introspección se controla con `GRAPHQL_INTROSPECTION` y las consultas tienen un máximo de profundidad 10.
+
+### Historial de actividad en GraphQL y tiempo real
+
+`POST /graphql` expone la query autenticada `myActivity(page: Int, limit: Int)`. Omite los argumentos para usar `page=1` y `limit=10`; `page` debe ser al menos 1 y `limit` estar entre 1 y 50. Devuelve `{ data, meta }` en orden `createdAt DESC`, con `action`, `metadata`, `createdAt` y `mediaItem` opcional. El usuario se obtiene de la sesión JWT y solo consulta su propio historial. Ejemplo:
+
+```graphql
+query MyActivity($page: Int, $limit: Int) {
+  myActivity(page: $page, limit: $limit) {
+    data { id action metadata createdAt mediaItem { id title type } }
+    meta { total page limit totalPages }
+  }
+}
+```
+
+Al persistir una actividad, el backend emite `activity.created` a la sala privada `user:{id}` del propietario. El payload incluye `activityId`, `action`, `mediaItemId` cuando existe y `createdAt` ISO-8601. La conexión usa el ticket de un solo uso de `POST /auth/socket-token`; cada conexión y reconexión necesita un ticket nuevo.
+
+```ts
+socket.on('activity.created', (payload) => {
+  console.log('Nueva actividad:', payload);
+});
+```
+
+```json
+{"errors":[{"message":"The media item is already in the library","extensions":{"code":"CONFLICT","status":409}}]}
+```
+
+Notificaciones REST: `GET /notifications?page=1&limit=10&isRead=false` devuelve `{ data, meta }`; `PATCH /notifications/:id/read` marca una notificación propia como leída. La autorización de propiedad se aplica en ambos endpoints.
+
+### Listas de usuario en GraphQL
+
+Las listas se pueden consumir por REST y GraphQL en paralelo. GraphQL expone `myLists`, `publicLists(filter)`, `userList(id)`, `createUserList(input)`, `updateUserList(id, input)`, `deleteUserList(id)`, `addItemToList(listId, input)` y `removeItemFromList(listId, mediaItemId)`. Todas requieren el mismo `Authorization: Bearer <accessToken>` que REST y delegan en `UserListsService`.
+
+`myLists` devuelve las listas propias. `publicLists` devuelve listas públicas de otros usuarios con `{ data, meta }` y acepta `page` y `limit` de 1 a 50, con valores predeterminados 1 y 10. `userList` permite consultar listas propias y públicas ajenas. Una lista privada ajena responde `NOT_FOUND`/404. Las mutaciones respetan la propiedad, la unicidad del nombre y el requisito de que el media agregado esté aprobado.
+
+`UserList` incluye `id`, `name`, `description`, `visibility`, `createdAt`, `updatedAt`, `owner { id username }` e `items`. `description` es nullable. `items` reutiliza `LibraryMediaItem`, incluyendo sus géneros. `CreateUserListInput` contiene `name!`, `description` nullable opcional y `visibility` (`PRIVATE` o `PUBLIC`) nullable opcional. La visibilidad predeterminada es `PRIVATE`. `UpdateUserListInput` admite los mismos campos opcionales. `AddListItemInput` requiere `mediaItemId`.
+
+```graphql
+query MyLists {
+  myLists {
+    id name description visibility createdAt updatedAt
+    owner { id username }
+    items { id title type genres { id name } }
+  }
+}
+
+query PublicLists($filter: PublicListFilterInput) {
+  publicLists(filter: $filter) {
+    data { id name visibility owner { id username } }
+    meta { total page limit totalPages }
+  }
+}
+
+mutation CreateList($input: CreateUserListInput!) {
+  createUserList(input: $input) { id name visibility owner { username } }
+}
+```
+
+Los cambios de listas generan los cinco eventos `list.*` de la tabla anterior tanto desde REST como desde GraphQL. Solo se envían a la sala privada del propietario después de guardar correctamente. Las operaciones fallidas, como agregar un elemento duplicado, no producen evento.
+
 ### 5. Reseñas, reportes y estadísticas
 
 | Paso | Petición | Resultado esperado |
@@ -165,6 +275,8 @@ Las E2E vacían tablas, por eso solo se ejecutan si `POSTGRES_DB` contiene «tes
 docker compose exec db sh -c 'createdb -U "$POSTGRES_USER" mydatabase_test'
 POSTGRES_DB=mydatabase_test npm run test:e2e
 ```
+
+Las variables nuevas del backend son `CORS_ORIGIN` (orígenes permitidos separados por coma) y `GRAPHQL_INTROSPECTION` (por defecto `false`).
 
 GitHub Actions (`.github/workflows/ci.yml`) ejecuta lint, pruebas unitarias y E2E con un servicio de PostgreSQL en cada push y pull request a `master`.
 
