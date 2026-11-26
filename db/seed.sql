@@ -164,11 +164,11 @@ FROM (VALUES
     ('10000000-0000-4000-8000-000000000003', 'Stardew Valley', 'GAME', 'Simulador de granja con exploración y relaciones.', 2016, 'ConcernedApe', NULL, 'PC', NULL, NULL, NULL, 'APPROVED', NULL, 8.5, 1, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000004', 'Celeste', 'GAME', 'Plataformas y superación personal en una montaña.', 2018, 'Maddy Makes Games', NULL, 'PC', NULL, NULL, NULL, 'PENDING', NULL, 0, 0, 'user@example.com'),
     ('10000000-0000-4000-8000-000000000005', 'Proyecto Nebulosa', 'GAME', 'Propuesta de juego de ciencia ficción.', 2026, 'Usuario Prueba', NULL, 'PC', NULL, NULL, NULL, 'REJECTED', 'La propuesta necesita información adicional.', 0, 0, 'user@example.com'),
-    ('10000000-0000-4000-8000-000000000006', 'The Matrix', 'MOVIE', 'Ciencia ficción sobre una realidad simulada.', 1999, 'Lana y Lilly Wachowski', NULL, NULL, 136, NULL, NULL, 'APPROVED', NULL, 9.0, 1, 'admin@example.com'),
-    ('10000000-0000-4000-8000-000000000007', 'El viaje de Chihiro', 'MOVIE', 'Aventura fantástica en un mundo de espíritus.', 2001, 'Hayao Miyazaki', NULL, NULL, 125, NULL, NULL, 'APPROVED', NULL, 9.5, 1, 'admin@example.com'),
-    ('10000000-0000-4000-8000-000000000008', 'El Padrino', 'MOVIE', 'Drama criminal sobre una familia de Nueva York.', 1972, 'Francis Ford Coppola', NULL, NULL, 175, NULL, NULL, 'APPROVED', NULL, 9.1, 1, 'admin@example.com'),
-    ('10000000-0000-4000-8000-000000000009', 'Horizonte Rojo', 'MOVIE', 'Propuesta de película de ciencia ficción.', 2026, 'Moderador Prueba', NULL, NULL, 110, NULL, NULL, 'PENDING', NULL, 0, 0, 'moderator@example.com'),
-    ('10000000-0000-4000-8000-000000000010', 'La Noche Infinita', 'MOVIE', 'Propuesta de terror para revisión.', 2025, 'Usuario Prueba', NULL, NULL, 95, NULL, NULL, 'REJECTED', 'El título ya existe en el catálogo.', 0, 0, 'user@example.com'),
+    ('10000000-0000-4000-8000-000000000006', 'The Matrix', 'MOVIE', 'Ciencia ficción sobre una realidad simulada.', 1999, 'Lana y Lilly Wachowski', 'https://upload.wikimedia.org/wikipedia/en/d/db/The_Matrix.png', NULL, 136, NULL, NULL, 'APPROVED', NULL, 9.0, 1, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000007', 'El viaje de Chihiro', 'MOVIE', 'Aventura fantástica en un mundo de espíritus.', 2001, 'Hayao Miyazaki', 'https://upload.wikimedia.org/wikipedia/en/d/db/Spirited_Away_Japanese_poster.png', NULL, 125, NULL, NULL, 'APPROVED', NULL, 9.5, 1, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000008', 'El Padrino', 'MOVIE', 'Drama criminal sobre una familia de Nueva York.', 1972, 'Francis Ford Coppola', 'https://upload.wikimedia.org/wikipedia/en/1/1c/Godfather_ver1.jpg', NULL, 175, NULL, NULL, 'APPROVED', NULL, 9.1, 1, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000009', 'Horizonte Rojo', 'MOVIE', 'Propuesta de película de ciencia ficción.', 2026, 'Moderador Prueba', 'https://placehold.co/450x675/7f1d1d/ffffff.png?text=Horizonte+Rojo', NULL, 110, NULL, NULL, 'PENDING', NULL, 0, 0, 'moderator@example.com'),
+    ('10000000-0000-4000-8000-000000000010', 'La Noche Infinita', 'MOVIE', 'Propuesta de terror para revisión.', 2025, 'Usuario Prueba', 'https://placehold.co/450x675/18181b/ffffff.png?text=La+Noche+Infinita', NULL, 95, NULL, NULL, 'REJECTED', 'El título ya existe en el catálogo.', 0, 0, 'user@example.com'),
     ('10000000-0000-4000-8000-000000000011', 'Cien años de soledad', 'BOOK', 'Novela sobre la familia Buendía y Macondo.', 1967, 'Gabriel García Márquez', NULL, NULL, NULL, 496, '9780307474728', 'APPROVED', NULL, 9.4, 1, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000012', '1984', 'BOOK', 'Novela distópica sobre vigilancia y control social.', 1949, 'George Orwell', NULL, NULL, NULL, 328, '9780451524935', 'APPROVED', NULL, 8.9, 1, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000013', 'El nombre del viento', 'BOOK', 'Fantasía sobre la vida y las leyendas de Kvothe.', 2007, 'Patrick Rothfuss', NULL, NULL, NULL, 662, '9780756404741', 'APPROVED', NULL, 8.7, 1, 'admin@example.com'),
@@ -176,14 +176,15 @@ FROM (VALUES
     ('10000000-0000-4000-8000-000000000015', 'Manual de los Sueños', 'BOOK', 'Propuesta de libro para moderación.', 2025, 'Moderador Prueba', NULL, NULL, NULL, 210, '9780000000002', 'PENDING', NULL, 0, 0, 'moderator@example.com'),
     ('10000000-0000-4000-8000-000000000016', 'Ori and the Will of the Wisps', 'GAME', 'Aventura de plataformas en un bosque fantástico.', 2020, 'Moon Studios', NULL, 'PC', NULL, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000017', 'Sea of Stars', 'GAME', 'Aventura de rol inspirada en los clásicos.', 2023, 'Sabotage Studio', NULL, 'PC', NULL, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
-    ('10000000-0000-4000-8000-000000000018', 'Interstellar', 'MOVIE', 'Un viaje espacial en busca de un nuevo hogar.', 2014, 'Christopher Nolan', NULL, NULL, 169, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
-    ('10000000-0000-4000-8000-000000000019', 'Arrival', 'MOVIE', 'Una lingüista intenta comprender una visita extraterrestre.', 2016, 'Denis Villeneuve', NULL, NULL, 116, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000018', 'Interstellar', 'MOVIE', 'Un viaje espacial en busca de un nuevo hogar.', 2014, 'Christopher Nolan', 'https://upload.wikimedia.org/wikipedia/en/b/bc/Interstellar_film_poster.jpg', NULL, 169, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000019', 'Arrival', 'MOVIE', 'Una lingüista intenta comprender una visita extraterrestre.', 2016, 'Denis Villeneuve', 'https://upload.wikimedia.org/wikipedia/en/d/df/Arrival%2C_Movie_Poster.jpg', NULL, 116, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000020', 'Dune', 'BOOK', 'Una novela de ciencia ficción sobre poder y supervivencia.', 1965, 'Frank Herbert', NULL, NULL, NULL, 896, '9780441172719', 'APPROVED', NULL, 0, 0, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000021', 'The Hobbit', 'BOOK', 'Una aventura fantástica en la Tierra Media.', 1937, 'J. R. R. Tolkien', NULL, NULL, NULL, 310, '9780547928227', 'APPROVED', NULL, 0, 0, 'admin@example.com')
 ) AS v(id, title, type, description, release_year, creator, cover_url, platform, duration_minutes, pages, isbn, approval_status, rejection_reason, average_rating, ratings_count, email)
 JOIN users u ON u.email = v.email
 ON CONFLICT (id) DO UPDATE
 SET approval_status = EXCLUDED.approval_status,
+    cover_url = EXCLUDED.cover_url,
     rejection_reason = EXCLUDED.rejection_reason,
     average_rating = EXCLUDED.average_rating,
     ratings_count = EXCLUDED.ratings_count;
