@@ -90,7 +90,7 @@ export class MediaItemService {
     }
 
     /** Detalle con géneros, promedio y cantidad de calificaciones. Un pendiente solo lo ven su creador y los moderadores. */
-    async findOne(viewer: AuthenticatedUser, id: string): Promise<MediaItem> {
+    async findOne(viewer: Pick<AuthenticatedUser, 'id' | 'permissions'>, id: string): Promise<MediaItem> {
         const item = await this.findWithRelations(id);
         const visible =
             item.approvalStatus === ApprovalStatus.APPROVED ||

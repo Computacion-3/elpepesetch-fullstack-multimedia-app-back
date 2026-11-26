@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "ed625ceb-5b4d-4c50-8e1f-c7b9047fbf7b",
     "name": "Elpepesetch - Full API Test Collection",
-    "description": "Pruebas manuales de todas las rutas HTTP actualmente implementadas en los controladores: autenticación, usuarios, roles, permisos, catálogo, géneros, biblioteca, listas, actividad, reseñas, reportes y estadísticas. Importar en Postman y ejecutar la colección en orden. Requiere la API en ejecución y db/seed.sql cargado; las credenciales de desarrollo están configuradas en las variables de colección. Hay flujos con IDs capturados automáticamente y solicitudes de limpieza al final.\n\nLimitaciones observadas en el proyecto: el seed se carga ejecutando db/seed.sql (no existe POST /seed ni npm run seed); no hay rutas HTTP para aprobar o rechazar propuestas del catálogo; y el servicio actual de POST /media no asigna el campo createdBy requerido por la entidad, por lo que su prueba puede fallar. La colección incluye la ruta para mostrar el resultado y omite las solicitudes dependientes si no se obtiene un ID.",
+    "description": "Pruebas manuales de autenticación, usuarios, roles, permisos, catálogo, géneros, biblioteca, listas, actividad, reseñas, reportes, estadísticas, notificaciones y GraphQL. Importa la colección, configura baseUrl y ejecuta las carpetas en orden con una base que tenga db/seed.sql cargado. Las credenciales de desarrollo se guardan como variables de colección; las respuestas capturan los IDs temporales para las solicitudes siguientes.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -4011,7 +4011,449 @@
       ]
     },
     {
-      "name": "10 - Cierre de sesión y limpieza",
+      "name": "10 - Notificaciones",
+      "description": "Consulta avisos propios, filtra por lectura y marca un aviso como leído.",
+      "item": [
+        {
+          "name": "GET /notifications - listar avisos sin leer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/notifications?page=1&limit=10&isRead=false",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Respuesta paginada', function () { pm.expect(body.data).to.be.an('array'); pm.expect(body.meta).to.include.keys('total','page','limit','totalPages'); });",
+                  "if (body.data.length) pm.collectionVariables.set('notificationId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /notifications/:id/read - otro usuario recibe 404",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('No expone avisos ajenos', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /notifications/:id/read - marcar aviso propio",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Queda leído', function () { pm.expect(pm.response.json().isRead).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /notifications - filtrar avisos leídos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/notifications?page=1&limit=10&isRead=true",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "const ids = pm.response.json().data.map(n => n.id);",
+                  "pm.test('Incluye el aviso marcado', function () { pm.expect(ids).to.include(pm.collectionVariables.get('notificationId')); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11 - GraphQL de biblioteca",
+      "description": "Las cinco operaciones usan el mismo token y las mismas reglas de negocio que REST.",
+      "item": [
+        {
+          "name": "Sin token - myLibrary devuelve UNAUTHENTICATED",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query { myLibrary { meta { total } } }\",\n  \"variables\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GraphQL responde con error de autenticación', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const error = pm.response.json().errors[0];",
+                  "  pm.expect(error.extensions).to.include({ code: 'UNAUTHENTICATED', status: 401 });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query myLibrary - filtros y paginación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query MyLibrary($filter: LibraryFilterInput) { myLibrary(filter: $filter) { data { id status progress rating isFavorite mediaItem { id title type genres { id name } } } meta { total page limit totalPages } } }\",\n  \"variables\": {\n    \"filter\": {\n      \"page\": 1,\n      \"limit\": 10\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 sin errores GraphQL', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().errors).to.be.undefined; });",
+                  "pm.test('Conserva data y meta', function () { pm.expect(pm.response.json().data.myLibrary).to.have.keys('data','meta'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query libraryEntry - detalle de una entrada del seed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query LibraryEntry($id: ID!) { libraryEntry(id: $id) { id status progress rating isFavorite mediaItem { id title type genres { id name } } } }\",\n  \"variables\": {\n    \"id\": \"{{seedLibraryEntryId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 sin errores GraphQL', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().errors).to.be.undefined; });",
+                  "pm.test('Incluye elemento y géneros', function () { pm.expect(pm.response.json().data.libraryEntry.mediaItem.genres).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query libraryEntry - otra persona recibe FORBIDDEN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{moderatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"query LibraryEntry($id: ID!) { libraryEntry(id: $id) { id } }\",\n  \"variables\": {\n    \"id\": \"{{seedLibraryEntryId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GraphQL informa propiedad ajena', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().errors[0].extensions).to.include({ code: 'FORBIDDEN', status: 403 });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mutation addToLibrary - agrega The Hobbit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mutation AddEntry($input: AddLibraryEntryInput!) { addToLibrary(input: $input) { id status progress isFavorite mediaItem { id title } } }\",\n  \"variables\": {\n    \"input\": {\n      \"mediaItemId\": \"{{graphqlMediaId}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 sin errores GraphQL', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().errors).to.be.undefined; });",
+                  "const entry = pm.response.json().data.addToLibrary;",
+                  "pm.test('La entrada inicia en PENDING', function () { pm.expect(entry.status).to.eql('PENDING'); });",
+                  "pm.collectionVariables.set('graphqlLibraryEntryId', entry.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mutation updateLibraryEntry - actualiza progreso y favorito",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mutation UpdateEntry($id: ID!, $input: UpdateLibraryEntryInput!) { updateLibraryEntry(id: $id, input: $input) { id status progress isFavorite } }\",\n  \"variables\": {\n    \"id\": \"{{graphqlLibraryEntryId}}\",\n    \"input\": {\n      \"status\": \"IN_PROGRESS\",\n      \"progress\": 10,\n      \"isFavorite\": true\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 sin errores GraphQL', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().errors).to.be.undefined; });",
+                  "pm.test('Actualiza estado, progreso y favorito', function () { pm.expect(pm.response.json().data.updateLibraryEntry).to.include({ status: 'IN_PROGRESS', progress: 10, isFavorite: true }); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mutation removeLibraryEntry - elimina la entrada temporal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/graphql",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"mutation RemoveEntry($id: ID!) { removeLibraryEntry(id: $id) }\",\n  \"variables\": {\n    \"id\": \"{{graphqlLibraryEntryId}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 sin errores GraphQL', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().errors).to.be.undefined; });",
+                  "pm.test('Confirma la eliminación', function () { pm.expect(pm.response.json().data.removeLibraryEntry).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "12 - Cierre de sesión y limpieza",
       "description": "Revoca el token temporal y elimina el usuario temporal registrado.",
       "item": [
         {
@@ -4347,6 +4789,22 @@
       "key": "testListId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "seedLibraryEntryId",
+      "value": "20000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "graphqlMediaId",
+      "value": "10000000-0000-4000-8000-000000000021"
+    },
+    {
+      "key": "graphqlLibraryEntryId",
+      "value": ""
     }
   ]
 }

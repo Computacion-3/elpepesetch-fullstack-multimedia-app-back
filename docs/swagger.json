@@ -1,0 +1,3942 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Hello World!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Mensaje de bienvenida (requiere autenticación)",
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "description": "Crea una cuenta con el rol USER. El rol no se acepta del cliente.",
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario creado (sin contraseña)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "409": {
+            "description": "El correo o el nombre de usuario ya están en uso"
+          }
+        },
+        "summary": "Registrar un usuario",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "description": "Devuelve un JWT (con jti único) y los datos básicos del usuario.",
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión iniciada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Credenciales inválidas"
+          }
+        },
+        "summary": "Iniciar sesión",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "Revoca el token actual: deja de ser válido aunque no haya expirado.",
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Token revocado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cerrar sesión",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Perfil del usuario autenticado",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/users/me": {
+      "patch": {
+        "description": "Solo afecta a la cuenta del token. No permite cambiar el rol.",
+        "operationId": "UserController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "409": {
+            "description": "El correo o el nombre de usuario ya están en uso"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar el perfil propio",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users": {
+      "post": {
+        "operationId": "UserController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          },
+          "404": {
+            "description": "El rol indicado no existe"
+          },
+          "409": {
+            "description": "El correo o el nombre de usuario ya están en uso"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crear un usuario con el rol indicado (administrador)",
+        "tags": [
+          "Users"
+        ]
+      },
+      "get": {
+        "description": "Lista paginada. Filtros opcionales: role, isActive y q (busca en username, email y nombre).",
+        "operationId": "UserController_findAll",
+        "parameters": [
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "description": "Nombre del rol (USER, MODERATOR, ADMIN)",
+            "schema": {
+              "example": "MODERATOR",
+              "type": "string"
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "true: cuentas activas; false: cuentas desactivadas",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Busca en username, email y nombre completo (sin distinguir mayúsculas)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedUsersResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros de consulta inválidos (por ejemplo, limit mayor a 50)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Listar usuarios (administrador)",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UserController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del usuario",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El id no es un entero positivo"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          },
+          "404": {
+            "description": "El usuario no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Detalle de un usuario (administrador)",
+        "tags": [
+          "Users"
+        ]
+      },
+      "patch": {
+        "operationId": "UserController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del usuario",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          },
+          "404": {
+            "description": "El usuario o el rol no existen"
+          },
+          "409": {
+            "description": "El correo o el nombre de usuario ya están en uso"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar cualquier usuario (administrador)",
+        "tags": [
+          "Users"
+        ]
+      },
+      "delete": {
+        "operationId": "UserController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del usuario",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario eliminado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          },
+          "404": {
+            "description": "El usuario no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar un usuario (administrador)",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/roles": {
+      "patch": {
+        "operationId": "UserController_assignRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del usuario",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          },
+          "404": {
+            "description": "El usuario o el rol no existen"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Asignar un rol a un usuario (administrador)",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}/status": {
+      "patch": {
+        "description": "Una cuenta desactivada no puede iniciar sesión y sus tokens vigentes dejan de ser válidos. Los datos se conservan.",
+        "operationId": "UserController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del usuario",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos, o intento de desactivar la propia cuenta"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: users:manage"
+          },
+          "404": {
+            "description": "El usuario no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Activar o desactivar una cuenta (administrador)",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/roles": {
+      "post": {
+        "operationId": "RoleController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: roles:manage"
+          },
+          "409": {
+            "description": "Ya existe un rol con ese nombre"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crear un rol",
+        "tags": [
+          "Roles"
+        ]
+      },
+      "get": {
+        "operationId": "RoleController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoleResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: roles:manage"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Listar roles",
+        "tags": [
+          "Roles"
+        ]
+      }
+    },
+    "/roles/{id}": {
+      "get": {
+        "operationId": "RoleController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del rol",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El id no es un entero positivo"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: roles:manage"
+          },
+          "404": {
+            "description": "El rol no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Detalle de un rol con sus permisos",
+        "tags": [
+          "Roles"
+        ]
+      },
+      "patch": {
+        "operationId": "RoleController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del rol",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: roles:manage"
+          },
+          "404": {
+            "description": "El rol no existe"
+          },
+          "409": {
+            "description": "Ya existe un rol con ese nombre"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar un rol",
+        "tags": [
+          "Roles"
+        ]
+      },
+      "delete": {
+        "operationId": "RoleController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del rol",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rol eliminado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: roles:manage"
+          },
+          "404": {
+            "description": "El rol no existe"
+          },
+          "409": {
+            "description": "El rol tiene usuarios asignados"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar un rol",
+        "tags": [
+          "Roles"
+        ]
+      }
+    },
+    "/roles/{id}/permissions": {
+      "put": {
+        "description": "Reemplaza el conjunto de permisos del rol.",
+        "operationId": "RoleController_setPermissions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del rol",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRolePermissionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos o algún permiso no existe"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: roles:manage"
+          },
+          "404": {
+            "description": "El rol no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Definir los permisos de un rol",
+        "tags": [
+          "Roles"
+        ]
+      }
+    },
+    "/permissions": {
+      "post": {
+        "operationId": "PermissionController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePermissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: permissions:manage"
+          },
+          "409": {
+            "description": "Ya existe un permiso con ese nombre"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crear un permiso",
+        "tags": [
+          "Permissions"
+        ]
+      },
+      "get": {
+        "operationId": "PermissionController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: permissions:manage"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Listar permisos",
+        "tags": [
+          "Permissions"
+        ]
+      }
+    },
+    "/permissions/{id}": {
+      "get": {
+        "operationId": "PermissionController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del permiso",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El id no es un entero positivo"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: permissions:manage"
+          },
+          "404": {
+            "description": "El permiso no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Detalle de un permiso",
+        "tags": [
+          "Permissions"
+        ]
+      },
+      "patch": {
+        "operationId": "PermissionController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del permiso",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePermissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos (falla la validación del DTO)"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: permissions:manage"
+          },
+          "404": {
+            "description": "El permiso no existe"
+          },
+          "409": {
+            "description": "Ya existe un permiso con ese nombre"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar un permiso",
+        "tags": [
+          "Permissions"
+        ]
+      },
+      "delete": {
+        "description": "También lo retira de los roles que lo tenían.",
+        "operationId": "PermissionController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Id del permiso",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Permiso eliminado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: permissions:manage"
+          },
+          "404": {
+            "description": "El permiso no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar un permiso",
+        "tags": [
+          "Permissions"
+        ]
+      }
+    },
+    "/genres": {
+      "post": {
+        "operationId": "GenreController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGenreDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Género creado"
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: genres:manage"
+          },
+          "409": {
+            "description": "Ya existe un género con ese nombre"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crear un género (administrador)",
+        "tags": [
+          "Genres"
+        ]
+      },
+      "get": {
+        "operationId": "GenreController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Géneros ordenados por nombre"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Listar todos los géneros",
+        "tags": [
+          "Genres"
+        ]
+      }
+    },
+    "/genres/{id}": {
+      "get": {
+        "operationId": "GenreController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Género"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "404": {
+            "description": "El género no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Detalle de un género",
+        "tags": [
+          "Genres"
+        ]
+      },
+      "patch": {
+        "operationId": "GenreController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGenreDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Género actualizado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: genres:manage"
+          },
+          "404": {
+            "description": "El género no existe"
+          },
+          "409": {
+            "description": "Ya existe un género con ese nombre"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar un género (administrador)",
+        "tags": [
+          "Genres"
+        ]
+      },
+      "delete": {
+        "operationId": "GenreController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Género eliminado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: genres:manage"
+          },
+          "404": {
+            "description": "El género no existe"
+          },
+          "409": {
+            "description": "El género está asignado a elementos del catálogo"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar un género (administrador)",
+        "tags": [
+          "Genres"
+        ]
+      }
+    },
+    "/media": {
+      "post": {
+        "operationId": "MediaItemController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMediaItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Elemento creado"
+          },
+          "400": {
+            "description": "Datos inválidos, año fuera de rango o géneros inexistentes"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: catalog:create"
+          },
+          "409": {
+            "description": "Ya existe un elemento con ese título, tipo y año"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Proponer un elemento (queda PENDING; APPROVED si lo crea un administrador)",
+        "tags": [
+          "Catalog"
+        ]
+      },
+      "get": {
+        "operationId": "MediaItemController_findAll",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Busca en el título o el creador",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GAME",
+                "MOVIE",
+                "BOOK"
+              ]
+            }
+          },
+          {
+            "name": "genreId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 2020,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "title",
+              "type": "string",
+              "enum": [
+                "title",
+                "releaseYear",
+                "averageRating"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "ASC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ data, meta: { total, page, limit, totalPages } }"
+          },
+          "400": {
+            "description": "Parámetros de consulta inválidos"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Catálogo aprobado con filtros y paginación; incluye los pendientes propuestos por quien consulta",
+        "tags": [
+          "Catalog"
+        ]
+      }
+    },
+    "/media/pending": {
+      "get": {
+        "operationId": "MediaItemController_findPending",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Busca en el título o el creador",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GAME",
+                "MOVIE",
+                "BOOK"
+              ]
+            }
+          },
+          {
+            "name": "genreId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 2020,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "title",
+              "type": "string",
+              "enum": [
+                "title",
+                "releaseYear",
+                "averageRating"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "ASC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ data, meta }, los más antiguos primero"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: catalog:moderate"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Elementos pendientes de aprobación (moderador)",
+        "tags": [
+          "Catalog"
+        ]
+      }
+    },
+    "/media/{id}": {
+      "get": {
+        "operationId": "MediaItemController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Elemento del catálogo"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "404": {
+            "description": "No existe, o es un pendiente de otro usuario"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Detalle con géneros, promedio y cantidad de calificaciones",
+        "tags": [
+          "Catalog"
+        ]
+      },
+      "patch": {
+        "operationId": "MediaItemController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMediaItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Elemento actualizado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: catalog:update"
+          },
+          "404": {
+            "description": "El elemento no existe"
+          },
+          "409": {
+            "description": "Ya existe un elemento con ese título, tipo y año"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar: el creador mientras esté PENDING; el administrador siempre",
+        "tags": [
+          "Catalog"
+        ]
+      },
+      "delete": {
+        "operationId": "MediaItemController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Elemento eliminado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: catalog:delete"
+          },
+          "404": {
+            "description": "El elemento no existe"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar un elemento del catálogo (administrador)",
+        "tags": [
+          "Catalog"
+        ]
+      }
+    },
+    "/media/{id}/approval": {
+      "patch": {
+        "operationId": "MediaItemController_setApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveMediaItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Elemento revisado"
+          },
+          "400": {
+            "description": "Estado inválido o rechazo sin motivo"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol del usuario no tiene el permiso requerido: catalog:moderate"
+          },
+          "404": {
+            "description": "El elemento no existe"
+          },
+          "409": {
+            "description": "El elemento ya fue revisado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Aprobar o rechazar (con rejectionReason) un elemento pendiente (moderador)",
+        "tags": [
+          "Catalog"
+        ]
+      }
+    },
+    "/library": {
+      "post": {
+        "operationId": "LibraryEntriesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLibraryEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Entrada creada"
+          },
+          "400": {
+            "description": "Datos o regla de negocio inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "409": {
+            "description": "El elemento ya existe en la biblioteca"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Agregar un elemento a la biblioteca personal",
+        "tags": [
+          "Library"
+        ]
+      },
+      "get": {
+        "operationId": "LibraryEntriesController_findAll",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "IN_PROGRESS",
+                "COMPLETED",
+                "DROPPED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "isFavorite",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "GAME",
+                "MOVIE",
+                "BOOK"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "genreId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "title",
+                "releaseYear",
+                "averageRating",
+                "addedAt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Biblioteca paginada"
+          },
+          "400": {
+            "description": "Parámetros de filtro o paginación inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar la biblioteca propia",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/library/user/{userId}": {
+      "get": {
+        "operationId": "LibraryEntriesController_findByUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "Identificador del usuario objetivo",
+            "schema": {
+              "example": 7,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "IN_PROGRESS",
+                "COMPLETED",
+                "DROPPED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "isFavorite",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "GAME",
+                "MOVIE",
+                "BOOK"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "genreId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "title",
+                "releaseYear",
+                "averageRating",
+                "addedAt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Biblioteca paginada del usuario solicitado"
+          },
+          "400": {
+            "description": "Identificador o parámetros de filtro inválidos"
+          },
+          "401": {
+            "description": "No autenticado\n\nFalta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol no tiene permiso de administración\n\nEl rol del usuario no tiene el permiso requerido: users:manage"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          },
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar la biblioteca de otro usuario (administrador)",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/library/{id}": {
+      "get": {
+        "operationId": "LibraryEntriesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entrada encontrada"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "404": {
+            "description": "Entrada inexistente o no pertenece al usuario"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar una entrada propia",
+        "tags": [
+          "Library"
+        ]
+      },
+      "patch": {
+        "operationId": "LibraryEntriesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLibraryEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entrada actualizada"
+          },
+          "400": {
+            "description": "Datos o regla de negocio inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "404": {
+            "description": "Entrada inexistente o no pertenece al usuario"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Modificar una entrada propia",
+        "tags": [
+          "Library"
+        ]
+      },
+      "delete": {
+        "operationId": "LibraryEntriesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Entrada eliminada"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "404": {
+            "description": "Entrada inexistente o no pertenece al usuario"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar una entrada propia",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/activity": {
+      "get": {
+        "operationId": "ActivityLogsController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial paginado, ordenado por fecha descendente"
+          },
+          "400": {
+            "description": "Parámetros de paginación inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar el historial de actividad propio",
+        "tags": [
+          "Activity"
+        ]
+      }
+    },
+    "/lists": {
+      "post": {
+        "operationId": "UserListsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lista creada"
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "409": {
+            "description": "Nombre duplicado para el propietario"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crear una lista personal",
+        "tags": [
+          "Lists"
+        ]
+      },
+      "get": {
+        "operationId": "UserListsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Listas propias"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar las listas propias",
+        "tags": [
+          "Lists"
+        ]
+      }
+    },
+    "/lists/public": {
+      "get": {
+        "operationId": "UserListsController_findPublic",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listas públicas paginadas con username del propietario"
+          },
+          "400": {
+            "description": "Parámetros de paginación inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar listas públicas de otros usuarios",
+        "tags": [
+          "Lists"
+        ]
+      }
+    },
+    "/lists/{id}": {
+      "get": {
+        "operationId": "UserListsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista encontrada"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "404": {
+            "description": "Lista inexistente o privada no visible"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar una lista visible",
+        "tags": [
+          "Lists"
+        ]
+      },
+      "patch": {
+        "operationId": "UserListsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lista actualizada"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "La lista pertenece a otro usuario"
+          },
+          "404": {
+            "description": "Lista inexistente"
+          },
+          "409": {
+            "description": "Nombre duplicado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Modificar una lista propia",
+        "tags": [
+          "Lists"
+        ]
+      },
+      "delete": {
+        "operationId": "UserListsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Lista eliminada"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "La lista pertenece a otro usuario"
+          },
+          "404": {
+            "description": "Lista inexistente"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar una lista propia",
+        "tags": [
+          "Lists"
+        ]
+      }
+    },
+    "/lists/{id}/items": {
+      "post": {
+        "operationId": "UserListsController_addItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddListItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Elemento agregado"
+          },
+          "400": {
+            "description": "MediaItem no aprobado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "La lista pertenece a otro usuario"
+          },
+          "404": {
+            "description": "Lista o MediaItem inexistente"
+          },
+          "409": {
+            "description": "Elemento duplicado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Agregar un MediaItem aprobado a una lista",
+        "tags": [
+          "Lists"
+        ]
+      }
+    },
+    "/lists/{id}/items/{mediaItemId}": {
+      "delete": {
+        "operationId": "UserListsController_removeItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaItemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Elemento eliminado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "La lista pertenece a otro usuario"
+          },
+          "404": {
+            "description": "Lista o elemento inexistente"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar un MediaItem de una lista propia",
+        "tags": [
+          "Lists"
+        ]
+      }
+    },
+    "/media/{mediaItemId}/reviews": {
+      "post": {
+        "operationId": "ReviewController_create",
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reseña creada"
+          },
+          "400": {
+            "description": "El usuario no tiene una entrada elegible en su biblioteca"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol no tiene permiso para crear reseñas"
+          },
+          "409": {
+            "description": "Ya existe una reseña para este elemento"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Crear una reseña para un elemento de la biblioteca propia",
+        "tags": [
+          "Reviews"
+        ]
+      },
+      "get": {
+        "operationId": "ReviewController_findByMediaItem",
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reseñas paginadas; las ocultas solo se muestran a su autor y moderadores"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Listar reseñas visibles de un elemento",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/reviews/{id}": {
+      "patch": {
+        "operationId": "ReviewController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reseña actualizada"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "La reseña pertenece a otro usuario"
+          },
+          "404": {
+            "description": "Reseña inexistente"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Editar una reseña propia (el administrador puede editar cualquiera)",
+        "tags": [
+          "Reviews"
+        ]
+      },
+      "delete": {
+        "operationId": "ReviewController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Reseña eliminada"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "La reseña pertenece a otro usuario"
+          },
+          "404": {
+            "description": "Reseña inexistente"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Eliminar una reseña propia (el administrador puede eliminar cualquiera)",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/reviews/{reviewId}/report": {
+      "post": {
+        "operationId": "ReviewReportController_create",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reporte creado con estado OPEN"
+          },
+          "400": {
+            "description": "No se puede reportar una reseña propia"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "El rol no tiene permiso para reportar reseñas"
+          },
+          "409": {
+            "description": "El usuario ya reportó esta reseña"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Reportar una reseña ajena una sola vez",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/reports": {
+      "get": {
+        "operationId": "ReviewReportController_findAll",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "OPEN",
+                "RESOLVED",
+                "DISMISSED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reportes paginados, opcionalmente filtrados por estado"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "Solo moderadores y administradores pueden consultar reportes"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar reportes para moderación",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/reports/{id}/resolve": {
+      "patch": {
+        "operationId": "ReviewReportController_resolve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveReviewReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reporte resuelto; HIDE lo oculta y DISMISS lo mantiene visible"
+          },
+          "400": {
+            "description": "Falta el motivo para HIDE"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "Solo moderadores y administradores pueden moderar reseñas"
+          },
+          "404": {
+            "description": "Reporte inexistente"
+          },
+          "409": {
+            "description": "El reporte ya fue resuelto"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolver un reporte con HIDE o DISMISS",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/stats/me": {
+      "get": {
+        "operationId": "StatsController_getPersonal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Totales de biblioteca, géneros, finalizaciones mensuales y promedio de calificación"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar las estadísticas personales del usuario autenticado",
+        "tags": [
+          "Statistics"
+        ]
+      }
+    },
+    "/stats/global": {
+      "get": {
+        "operationId": "StatsController_getGlobal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Totales de usuarios, elementos por tipo, entradas de biblioteca y reseñas"
+          },
+          "401": {
+            "description": "Falta el token, es inválido, expiró o fue revocado"
+          },
+          "403": {
+            "description": "Solo el administrador puede consultar estadísticas globales"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Consultar las estadísticas globales de la plataforma (administrador)",
+        "tags": [
+          "Statistics"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "ElPepeSetch - API de librerías multimedia",
+    "description": "API para gestionar bibliotecas de juegos, películas y libros. Para probar las rutas protegidas: haz login en `POST /auth/login`, copia el `accessToken` y pulsa **Authorize**.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "access-token": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "RegisterUserDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Nombre de usuario único (letras, números y guion bajo)",
+            "example": "pepe_set",
+            "minLength": 3,
+            "maxLength": 30
+          },
+          "email": {
+            "type": "string",
+            "description": "Correo electrónico único",
+            "example": "pepe@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña en texto plano (mín. 8 caracteres, con mayúscula, minúscula y número). Se almacena con hash bcrypt.",
+            "example": "Secreta123",
+            "minLength": 8,
+            "format": "password"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nombre completo",
+            "example": "José Pérez",
+            "maxLength": 100
+          },
+          "bio": {
+            "type": "string",
+            "description": "Biografía del usuario",
+            "example": "Fan de los RPG y la ciencia ficción",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "username",
+          "email",
+          "password"
+        ]
+      },
+      "PermissionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "users:manage"
+          },
+          "description": {
+            "type": "string",
+            "example": "Gestionar usuarios"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description"
+        ]
+      },
+      "RolePermissionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "permission": {
+            "description": "Presente solo cuando se consulta el detalle del rol",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PermissionResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "RoleResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "ADMIN"
+          },
+          "description": {
+            "type": "string",
+            "example": "Gestiona usuarios, roles y catálogo"
+          },
+          "rolePermissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RolePermissionResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description"
+        ]
+      },
+      "UserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "pepe_set"
+          },
+          "email": {
+            "type": "string",
+            "example": "pepe@example.com"
+          },
+          "fullName": {
+            "type": "string",
+            "nullable": true,
+            "example": "José Pérez"
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true,
+            "example": "Fan de los RPG"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Si es false la cuenta no puede iniciar sesión",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleResponseDto"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "isActive",
+          "createdAt",
+          "updatedAt",
+          "role"
+        ]
+      },
+      "UserLoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Correo electrónico registrado",
+            "example": "pepe@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña de la cuenta",
+            "example": "Secreta123",
+            "format": "password"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "LoginUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "pepe_set"
+          },
+          "email": {
+            "type": "string",
+            "example": "pepe@example.com"
+          },
+          "role": {
+            "type": "string",
+            "example": "USER"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "role"
+        ]
+      },
+      "LoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT firmado; enviarlo como `Authorization: Bearer <token>`"
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "user": {
+            "$ref": "#/components/schemas/LoginUserDto"
+          }
+        },
+        "required": [
+          "accessToken",
+          "tokenType",
+          "user"
+        ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Nombre de usuario único (letras, números y guion bajo)",
+            "example": "pepe_set",
+            "minLength": 3,
+            "maxLength": 30
+          },
+          "email": {
+            "type": "string",
+            "description": "Correo electrónico único",
+            "example": "pepe@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña en texto plano (mín. 8 caracteres, con mayúscula, minúscula y número). Se almacena con hash bcrypt.",
+            "example": "Secreta123",
+            "minLength": 8,
+            "format": "password"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nombre completo",
+            "example": "José Pérez",
+            "maxLength": 100
+          },
+          "bio": {
+            "type": "string",
+            "description": "Biografía del usuario",
+            "example": "Fan de los RPG y la ciencia ficción",
+            "maxLength": 200
+          }
+        }
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Nombre de usuario único (letras, números y guion bajo)",
+            "example": "pepe_set",
+            "minLength": 3,
+            "maxLength": 30
+          },
+          "email": {
+            "type": "string",
+            "description": "Correo electrónico único",
+            "example": "pepe@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña en texto plano (mín. 8 caracteres, con mayúscula, minúscula y número). Se almacena con hash bcrypt.",
+            "example": "Secreta123",
+            "minLength": 8,
+            "format": "password"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nombre completo",
+            "example": "José Pérez",
+            "maxLength": 100
+          },
+          "bio": {
+            "type": "string",
+            "description": "Biografía del usuario",
+            "example": "Fan de los RPG y la ciencia ficción",
+            "maxLength": 200
+          },
+          "roleId": {
+            "type": "number",
+            "description": "Id del rol asignado al usuario",
+            "example": 1
+          }
+        },
+        "required": [
+          "username",
+          "email",
+          "password",
+          "roleId"
+        ]
+      },
+      "Object": {
+        "type": "object",
+        "properties": {}
+      },
+      "PaginationMetaDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "example": 42
+          },
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "limit": {
+            "type": "number",
+            "example": 10
+          },
+          "totalPages": {
+            "type": "number",
+            "example": 5
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "limit",
+          "totalPages"
+        ]
+      },
+      "PaginatedUsersResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Nombre de usuario único (letras, números y guion bajo)",
+            "example": "pepe_set",
+            "minLength": 3,
+            "maxLength": 30
+          },
+          "email": {
+            "type": "string",
+            "description": "Correo electrónico único",
+            "example": "pepe@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña en texto plano (mín. 8 caracteres, con mayúscula, minúscula y número). Se almacena con hash bcrypt.",
+            "example": "Secreta123",
+            "minLength": 8,
+            "format": "password"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nombre completo",
+            "example": "José Pérez",
+            "maxLength": 100
+          },
+          "bio": {
+            "type": "string",
+            "description": "Biografía del usuario",
+            "example": "Fan de los RPG y la ciencia ficción",
+            "maxLength": 200
+          },
+          "roleId": {
+            "type": "number",
+            "description": "Id del rol asignado al usuario",
+            "example": 1
+          }
+        }
+      },
+      "AssignRoleDto": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "number",
+            "description": "Id del rol que se asignará al usuario",
+            "example": 2
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "UpdateUserStatusDto": {
+        "type": "object",
+        "properties": {
+          "isActive": {
+            "type": "boolean",
+            "description": "true activa la cuenta; false la desactiva (bloquea el inicio de sesión y conserva los datos)",
+            "example": false
+          }
+        },
+        "required": [
+          "isActive"
+        ]
+      },
+      "CreateRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nombre único del rol",
+            "example": "MODERATOR",
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción del rol",
+            "example": "Revisa elementos y reseñas reportadas",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ]
+      },
+      "UpdateRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nombre único del rol",
+            "example": "MODERATOR",
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción del rol",
+            "example": "Revisa elementos y reseñas reportadas",
+            "maxLength": 255
+          }
+        }
+      },
+      "SetRolePermissionsDto": {
+        "type": "object",
+        "properties": {
+          "permissionIds": {
+            "description": "Ids de los permisos que tendrá el rol. Reemplaza el conjunto anterior (lista vacía = sin permisos).",
+            "example": [
+              1,
+              2
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "permissionIds"
+        ]
+      },
+      "CreatePermissionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nombre único del permiso, usado por @Permissions()",
+            "example": "users:manage",
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción del permiso",
+            "example": "Gestionar usuarios",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ]
+      },
+      "UpdatePermissionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nombre único del permiso, usado por @Permissions()",
+            "example": "users:manage",
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción del permiso",
+            "example": "Gestionar usuarios",
+            "maxLength": 255
+          }
+        }
+      },
+      "CreateGenreDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Fantasía"
+          },
+          "description": {
+            "type": "string",
+            "example": "Historias con elementos mágicos"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateGenreDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Fantasía"
+          },
+          "description": {
+            "type": "string",
+            "example": "Historias con elementos mágicos"
+          }
+        }
+      },
+      "CreateMediaItemDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GAME",
+              "MOVIE",
+              "BOOK"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "releaseYear": {
+            "type": "number",
+            "example": 2020
+          },
+          "creator": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "type": "number"
+          },
+          "pages": {
+            "type": "number"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "genreIds": {
+            "description": "Al menos un género",
+            "example": [
+              "<uuid del género>"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "type",
+          "releaseYear",
+          "creator",
+          "genreIds"
+        ]
+      },
+      "ApproveMediaItemDto": {
+        "type": "object",
+        "properties": {
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "rejectionReason": {
+            "type": "string",
+            "description": "Obligatorio si se rechaza",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "approvalStatus"
+        ]
+      },
+      "UpdateMediaItemDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "GAME",
+              "MOVIE",
+              "BOOK"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "releaseYear": {
+            "type": "number",
+            "example": 2020
+          },
+          "creator": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "type": "number"
+          },
+          "pages": {
+            "type": "number"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "genreIds": {
+            "description": "Al menos un género",
+            "example": [
+              "<uuid del género>"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateLibraryEntryDto": {
+        "type": "object",
+        "properties": {
+          "mediaItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "DROPPED"
+            ],
+            "default": "PENDING"
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0
+          },
+          "rating": {
+            "type": "object",
+            "minimum": 1,
+            "maximum": 10,
+            "nullable": true
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "default": false
+          },
+          "notes": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "mediaItemId"
+        ]
+      },
+      "UpdateLibraryEntryDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "DROPPED"
+            ]
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0
+          },
+          "rating": {
+            "type": "object",
+            "minimum": 1,
+            "maximum": 10,
+            "nullable": true
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "CreateUserListDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "PRIVATE",
+              "PUBLIC"
+            ],
+            "default": "PRIVATE"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateUserListDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "object",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "PRIVATE",
+              "PUBLIC"
+            ]
+          }
+        }
+      },
+      "AddListItemDto": {
+        "type": "object",
+        "properties": {
+          "mediaItemId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "mediaItemId"
+        ]
+      },
+      "CreateReviewDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "UpdateReviewDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "content": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          }
+        }
+      },
+      "CreateReviewReportDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "SPOILER",
+              "OFFENSIVE",
+              "SPAM",
+              "OTHER"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Comentario adicional del reporte"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ResolveReviewReportDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "HIDE",
+              "DISMISS"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Obligatorio cuando action es HIDE"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    }
+  }
+}

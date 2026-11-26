@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LibraryEntriesController } from './library_entries.controller.js';
 import { LibraryEntriesService } from './library_entries.service.js';
 import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
@@ -14,6 +15,7 @@ describe('LibraryEntriesController', () => {
                 { provide: 'LibraryEntryRepository', useValue: {} },
                 { provide: 'MediaItemRepository', useValue: {} },
                 { provide: ActivityLogsService, useValue: {} },
+                { provide: EventEmitter2, useValue: { emitAsync: vi.fn(async () => []) } },
             ],
         }).compile();
 

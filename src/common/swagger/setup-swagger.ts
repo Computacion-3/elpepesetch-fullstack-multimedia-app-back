@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { BEARER_AUTH_NAME } from './api-protected.decorator.js';
+// import { writeFileSync } from 'fs';
 
 export const SWAGGER_PATH = 'api/docs';
 
@@ -21,4 +22,6 @@ export function setupSwagger(app: INestApplication): void {
     SwaggerModule.setup(SWAGGER_PATH, app, document, {
         swaggerOptions: { persistAuthorization: true },
     });
+
+    // writeFileSync('./swagger.json', JSON.stringify(document, null, 2));
 }
