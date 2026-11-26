@@ -101,7 +101,7 @@ describe('ActivityLogsService', () => {
             order: { createdAt: 'DESC' },
             skip: 0,
             take: 10,
-            relations: { mediaItem: true },
+            relations: { mediaItem: { genres: true } },
         });
     });
 });

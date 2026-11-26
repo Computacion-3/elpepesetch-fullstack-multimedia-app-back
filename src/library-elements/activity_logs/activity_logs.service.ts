@@ -70,7 +70,7 @@ export class ActivityLogsService {
             order: { createdAt: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
-            ...(loadMediaItem ? { relations: { mediaItem: true } } : {}),
+            ...(loadMediaItem ? { relations: { mediaItem: { genres: true } } } : {}),
         });
         return {
             data,

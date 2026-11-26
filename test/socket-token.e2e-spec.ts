@@ -273,7 +273,7 @@ describe('Ticket del WebSocket (e2e)', () => {
 
             const activityQuery = `query($page: Int, $limit: Int) {
                 myActivity(page: $page, limit: $limit) {
-                    data { id action metadata createdAt mediaItem { id title type } }
+                    data { id action metadata createdAt mediaItem { id title type genres { id name } } }
                     meta { total page limit totalPages }
                 }
             }`;
@@ -285,6 +285,20 @@ describe('Ticket del WebSocket (e2e)', () => {
                 .post('/graphql')
                 .set('Authorization', `Bearer ${otherToken}`)
                 .send({ query: activityQuery, variables: { page: 1, limit: 50 } });
+
+            const [{ id: genreMediaId }] = await app.get(DataSource).query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ($1, 'BOOK', 2025, 'Test', 2, 'APPROVED') RETURNING id`,
+                [`Activity genre media ${Date.now()}`],
+            );
+            await app.get(DataSource).query(
+                `INSERT INTO media_item_genres (media_item_id, genre_id) VALUES ($1, $2)`,
+                [genreMediaId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+            );
+            await app.get(DataSource).query(
+                `INSERT INTO activity_logs (user_id, action, media_item_id) VALUES (1, 'ENTRY_ADDED', $1)`,
+                [genreMediaId],
+            );
 
             const [{ id: mediaItemId }] = await app.get(DataSource).query(
                 `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
@@ -322,11 +336,21 @@ describe('Ticket del WebSocket (e2e)', () => {
                 .set('Authorization', `Bearer ${ownerToken}`)
                 .send({ query: activityQuery, variables: { page: 1, limit: 1 } });
 
-            expect(ownerHistory.body.data.myActivity.meta.total).toBe(previousOwnerHistory.body.data.myActivity.meta.total + 2);
+            expect(ownerHistory.body.data.myActivity.meta.total).toBe(previousOwnerHistory.body.data.myActivity.meta.total + 3);
             expect(ownerHistory.body.data.myActivity.data.map((activity: { action: string }) => activity.action)).toEqual(
                 expect.arrayContaining(['ENTRY_ADDED', 'LIST_CREATED']),
             );
             expect(ownerHistory.body.data.myActivity.data[0].mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
+            const activityWithGenres = ownerHistory.body.data.myActivity.data.find(
+                (activity: { mediaItem?: { id: string } }) => activity.mediaItem?.id === genreMediaId,
+            );
+            const activityWithoutGenres = ownerHistory.body.data.myActivity.data.find(
+                (activity: { mediaItem?: { id: string } }) => activity.mediaItem?.id === mediaItemId,
+            );
+            expect(activityWithGenres.mediaItem.genres).toEqual([
+                { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Test' },
+            ]);
+            expect(activityWithoutGenres.mediaItem.genres).toEqual([]);
             const dates = ownerHistory.body.data.myActivity.data.map((activity: { createdAt: string }) =>
                 new Date(activity.createdAt).getTime(),
             );
