@@ -10,7 +10,7 @@ API REST en NestJS para gestionar bibliotecas personales de juegos, películas y
 
 - Node.js 24 y npm
 - Docker y Docker Compose (para PostgreSQL en local)
-- `psql` solo si se carga el seed desde Windows con el script de PowerShell
+
 
 ## Ejecutar la aplicación en local
 
@@ -40,18 +40,11 @@ API REST en NestJS para gestionar bibliotecas personales de juegos, películas y
     npm run start:dev
     ```
 
-5. **Cargar los datos iniciales** (con la API ya arrancada al menos una vez). El seed es idempotente: puede ejecutarse varias veces.
-    - **Windows:**
+5. **Cargar los datos iniciales** (después de que la API haya creado las tablas). El comando funciona en Windows, Linux y macOS, lee la conexión desde `.env` y se puede ejecutar varias veces sin duplicar registros.
 
-        ```powershell
-        powershell -ExecutionPolicy Bypass -File .\scripts\seed-db.ps1
-        ```
-
-    - **Linux / macOS:** ejecutar `psql` dentro del contenedor de `docker compose`, que ya tiene el usuario y la base configurados:
-
-        ```bash
-        docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/seed.sql
-        ```
+    ```bash
+    npm run seed
+    ```
 
 6. **Abrir Swagger** en `http://localhost:3002/api/docs` (o el `PORT` configurado).
 
@@ -59,7 +52,7 @@ Otros modos: `npm run start` (sin recarga) y `npm run build && npm run start:pro
 
 ## Usuarios de prueba
 
-El seed crea tres usuarios, uno por rol, junto con géneros, catálogo, bibliotecas, listas, reseñas y reportes de ejemplo:
+El seed crea tres usuarios (uno por rol), 10 géneros y 21 elementos multimedia: cinco aprobados por cada tipo, más propuestas para probar la moderación. También agrega bibliotecas, listas, reseñas, reportes y actividad de ejemplo:
 
 | Rol | Correo | Contraseña | Puede, además de lo del rol anterior |
 | --- | --- | --- | --- |
@@ -105,7 +98,7 @@ const socket = io(process.env.NEXT_PUBLIC_WS_URL, {
 
 El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada conexión o reconexión necesita un ticket nuevo. Auth valida la firma, expiración, uso único, revocación de la sesión original, estado activo del usuario y rol/permisos actuales desde la base de datos. Logout desconecta los sockets de esa sesión y la expiración de la sesión cierra el socket.
 
-`getFreshSocketTicket` es una función del BFF de Next.js. Debe llamar a `POST /auth/socket-token` con la sesión httpOnly y devolver `{ token }` al navegador. Cada reconexión solicita un ticket nuevo. El servidor asigna `user:{id}` a cada usuario y `moderators` a `MODERATOR` y `ADMIN`. El cliente no puede solicitar salas. El origen se controla con `CORS_ORIGIN`.
+`getFreshSocketTicket` es una función del BFF de Next.js. Debe llamar a `POST /auth/socket-token` con la sesión httpOnly y devolver `{ token }` al navegador. Cada reconexión solicita un ticket nuevo. El servidor asigna `user:{id}` a cada usuario y `moderators` a `MODERATOR` y `ADMIN`. Para el extra RF-WS-12, el cliente puede solicitar solo `media.subscribe` o `media.unsubscribe` con `mediaItemId`; antes de unirse, el servidor comprueba con las reglas del catálogo que el elemento sea visible para ese usuario. El cliente no puede elegir nombres de sala arbitrarios. El origen se controla con `CORS_ORIGIN`.
 
 | Evento | Destino | Payload |
 | --- | --- | --- |
@@ -114,6 +107,9 @@ El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada
 | `review.visibility.changed` | `user:{authorId}` | `{ reviewId, mediaItemId, isHidden: true, hiddenReason }` para `HIDE` |
 | `account.updated` | `user:{id}` | `{ role }` |
 | `account.deactivated` | `user:{id}` | `{}` y cierre de sus sockets |
+| `activity.created` | `user:{id}` | `{ activityId, action, mediaItemId?, createdAt }` |
+| `media.rating.updated` (extra) | `media:{mediaItemId}` | `{ mediaItemId, averageRating, ratingsCount }` |
+| `review.created` (extra) | `media:{mediaItemId}` | `{ reviewId, title, username }` |
 | `list.created` | `user:{ownerId}` | `{ listId, name, visibility, createdAt }` |
 | `list.updated` | `user:{ownerId}` | `{ listId, name, description, visibility, updatedAt }` |
 | `list.deleted` | `user:{ownerId}` | `{ listId }` |
@@ -121,6 +117,15 @@ El ticket se obtiene con `POST /auth/socket-token` y expira en 60 segundos. Cada
 | `list.item.removed` | `user:{ownerId}` | `{ listId, mediaItemId }` |
 
 Los eventos de catálogo, reporte, rol y cuenta se producen después de guardar los cambios. Los avisos de moderación, ocultamiento y cambio de rol también se persisten y pueden consultarse al reconectar.
+
+Para ver cambios de calificación y reseñas en vivo, el cliente se suscribe al elemento visible que está mostrando. El servidor arma la sala `media:{mediaItemId}` y entrega eventos solo a sus miembros:
+
+```ts
+socket.emit('media.subscribe', { mediaItemId }, (result) => console.log(result));
+socket.on('media.rating.updated', (payload) => console.log(payload));
+socket.on('review.created', (payload) => console.log(payload));
+socket.emit('media.unsubscribe', { mediaItemId });
+```
 
 ```ts
 socket.on('media.moderated', (payload) => console.log(payload));
@@ -278,7 +283,7 @@ POSTGRES_DB=mydatabase_test npm run test:e2e
 
 Las variables nuevas del backend son `CORS_ORIGIN` (orígenes permitidos separados por coma) y `GRAPHQL_INTROSPECTION` (por defecto `false`).
 
-GitHub Actions (`.github/workflows/ci.yml`) ejecuta lint, pruebas unitarias y E2E con un servicio de PostgreSQL en cada push y pull request a `master`.
+GitHub Actions (`.github/workflows/ci.yml`) ejecuta lint, compilación, pruebas unitarias y E2E con PostgreSQL en cada push a `main` o `master`, y en cada pull request.
 
 ## Despliegue (Docker + Render)
 
@@ -291,7 +296,7 @@ Para desplegar una instancia propia:
 
 1. Crear en Render una base PostgreSQL y un *Web Service* desde este repositorio con runtime **Docker**.
 2. Configurar `DB_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` con los datos internos de la base, `DB_SSL=false`, un `JWT_SECRET` nuevo, `JWT_EXPIRES_IN` y `SALT_QTY`.
-3. Tras el primer arranque, cargar el seed desde tu equipo con la URL externa: `psql "<URL externa>" -f db/seed.sql`.
+3. Tras el primer arranque, configurar la conexión externa en `.env` y ejecutar `npm run seed`.
 
 Para probar la imagen en local:
 
@@ -306,7 +311,7 @@ En Linux, agregar `--add-host=host.docker.internal:host-gateway`.
 
 | Workflow | Cuándo | Qué hace |
 |---|---|---|
-| `ci.yml` | Push y PR a `master` | Lint, compilación, pruebas unitarias y e2e (con PostgreSQL). En paralelo construye la imagen Docker para detectar antes que Render un `Dockerfile` roto |
+| `ci.yml` | Push a `main` o `master` y cualquier PR | Lint, compilación, pruebas unitarias y e2e (con PostgreSQL). En paralelo construye la imagen Docker para detectar antes que Render un `Dockerfile` roto |
 | `cd.yml` | Al terminar el CI en verde de un push a `master`, o a mano | Ejecuta `scripts/cd/render-deploy.mjs` |
 
 `render-deploy.mjs` no se limita a llamar al hook:

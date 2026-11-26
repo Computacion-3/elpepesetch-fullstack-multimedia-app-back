@@ -115,18 +115,18 @@ describe('Library GraphQL (e2e)', () => {
         expect(removed.body.data.removeLibraryEntry).toBe(true);
     });
 
-    it('does not expose another user’s entry', async () => {
+    it('blocks another user from reading or editing an entry', async () => {
         await db.query(
             `INSERT INTO library_entries (user_id, media_item_id, status, progress, is_favorite) VALUES (2, $1, 'PENDING', 0, false)`,
             [mediaId],
         );
         const rows = await db.query(`SELECT id FROM library_entries WHERE user_id = 2`);
         const response = await gql('query($id: ID!) { libraryEntry(id: $id) { id } }', { id: rows[0].id });
-        expect(response.body.errors[0].extensions).toMatchObject({ code: 'NOT_FOUND', status: 404 });
+        expect(response.body.errors[0].extensions).toMatchObject({ code: 'FORBIDDEN', status: 403 });
         const update = await gql(
             'mutation($id: ID!, $input: UpdateLibraryEntryInput!) { updateLibraryEntry(id: $id, input: $input) { id } }',
             { id: rows[0].id, input: { isFavorite: true } },
         );
-        expect(update.body.errors[0].extensions).toMatchObject({ code: 'NOT_FOUND', status: 404 });
+        expect(update.body.errors[0].extensions).toMatchObject({ code: 'FORBIDDEN', status: 403 });
     });
 });

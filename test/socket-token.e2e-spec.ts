@@ -52,8 +52,8 @@ describe('Ticket del WebSocket (e2e)', () => {
         const db = app.get(DataSource);
         await db.query(`TRUNCATE users, role_permissions, permissions, roles, revoked_tokens, genres RESTART IDENTITY CASCADE`);
         await db.query(`INSERT INTO roles (name, description) VALUES ('USER','u'),('ADMIN','a'),('MODERATOR','m')`);
-        await db.query(`INSERT INTO permissions (name, description) VALUES ('users:manage','m'),('catalog:create','c'),('catalog:moderate','m')`);
-        await db.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES (2, 1), (1, 2), (3, 3), (2, 3)`);
+        await db.query(`INSERT INTO permissions (name, description) VALUES ('users:manage','m'),('catalog:create','c'),('catalog:moderate','m'),('reviews:create','c')`);
+        await db.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES (2, 1), (1, 2), (3, 3), (2, 3), (1, 4)`);
         const hash = bcrypt.hashSync('Secreta123', 4);
         await db.query(
             `INSERT INTO users (username, email, password_hash, role_id) VALUES
@@ -117,6 +117,58 @@ describe('Ticket del WebSocket (e2e)', () => {
             expect(moderatorSockets[0]?.rooms).toContain('moderators');
         });
 
+        it('emite ratings y reseñas nuevas solo a sockets suscritos a un elemento visible', async () => {
+            const ownerToken = await login('pepe@test.com', 'Secreta123');
+            const owner = await connect(await socketTicket(ownerToken));
+            const other = await connect(await socketTicket(await login('admin@test.com', 'Secreta123')));
+            const db = app.get(DataSource);
+            const [{ id: ownerId }] = await db.query(`SELECT id FROM users WHERE email = 'pepe@test.com'`);
+            const [{ id: mediaItemId }] = await db.query(
+                `INSERT INTO media_items (title, type, release_year, creator, created_by_id, approval_status)
+                 VALUES ('Live review media', 'BOOK', 2025, 'Author', $1, 'APPROVED') RETURNING id`,
+                [ownerId],
+            );
+            const entry = await request(app.getHttpServer())
+                .post('/library')
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ mediaItemId, status: 'IN_PROGRESS', rating: 8 })
+                .expect(201);
+
+            await expect(owner.emitWithAck('media.subscribe', { mediaItemId })).resolves.toEqual({ mediaItemId });
+            const server = (app.get(RealtimeGateway) as unknown as { server: Server }).server;
+            const room = await server.in(`media:${mediaItemId}`).fetchSockets();
+            expect(room.map((socket) => socket.id)).toContain(owner.id);
+            expect(room.map((socket) => socket.id)).not.toContain(other.id);
+
+            const unrelatedEvents: unknown[] = [];
+            other.on('media.rating.updated', (payload: unknown) => unrelatedEvents.push(payload));
+            const ratingEvent = new Promise<Record<string, unknown>>((resolve) => owner.once('media.rating.updated', resolve));
+            await request(app.getHttpServer())
+                .patch(`/library/${entry.body.id}`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ rating: 6 })
+                .expect(200);
+            expect(await ratingEvent).toMatchObject({ mediaItemId, averageRating: 6, ratingsCount: 1 });
+
+            const reviewEvent = new Promise<Record<string, unknown>>((resolve) => owner.once('review.created', resolve));
+            await request(app.getHttpServer())
+                .post(`/media/${mediaItemId}/reviews`)
+                .set('Authorization', `Bearer ${ownerToken}`)
+                .send({ title: 'Lectura recomendada', content: 'Una reseña en vivo para el detalle multimedia.' })
+                .expect(201);
+            expect(await reviewEvent).toMatchObject({
+                reviewId: expect.any(String),
+                title: 'Lectura recomendada',
+                username: 'pepe',
+            });
+
+            await expect(owner.emitWithAck('media.unsubscribe', { mediaItemId })).resolves.toEqual({ mediaItemId });
+            const roomAfterLeave = await server.in(`media:${mediaItemId}`).fetchSockets();
+            expect(roomAfterLeave.map((socket) => socket.id)).not.toContain(owner.id);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(unrelatedEvents).toEqual([]);
+        });
+
         it('notifica al creador correcto después de moderar y persiste el aviso', async () => {
             const creatorToken = await login('pepe@test.com', 'Secreta123');
             const creator = await connect(await socketTicket(creatorToken));
@@ -145,7 +197,38 @@ describe('Ticket del WebSocket (e2e)', () => {
                 .set('Authorization', `Bearer ${creatorToken}`)
                 .expect(200);
             expect(notifications.body.data).toHaveLength(1);
-            expect(notifications.body.data[0]).toMatchObject({ type: 'MEDIA_MODERATED', payload: { mediaItemId: created.body.id } });
+            const notification = notifications.body.data[0] as { id: string; isRead: boolean };
+            expect(notification).toMatchObject({
+                type: 'MEDIA_MODERATED',
+                payload: { mediaItemId: created.body.id },
+                isRead: false,
+            });
+
+            // El filtro y la marca de lectura solo operan sobre la cuenta dueña del aviso.
+            const unread = await request(app.getHttpServer())
+                .get('/notifications?isRead=false')
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200);
+            expect(unread.body.data.map((item: { id: string }) => item.id)).toContain(notification.id);
+
+            await request(app.getHttpServer())
+                .patch(`/notifications/${notification.id}/read`)
+                .set('Authorization', `Bearer ${await login('admin@test.com', 'Secreta123')}`)
+                .expect(404);
+
+            const marked = await request(app.getHttpServer())
+                .patch(`/notifications/${notification.id}/read`)
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200);
+            expect(marked.body.isRead).toBe(true);
+
+            await request(app.getHttpServer())
+                .get('/notifications?isRead=true')
+                .set('Authorization', `Bearer ${creatorToken}`)
+                .expect(200)
+                .expect(({ body }) => expect(body.data.map((item: { id: string }) => item.id)).toContain(notification.id));
+
+            await request(app.getHttpServer()).get('/notifications').expect(401);
         });
 
         it('emite cada evento de lista una vez y solo en la sala de su propietario', async () => {
@@ -326,7 +409,10 @@ describe('Ticket del WebSocket (e2e)', () => {
             expect(ownerHistory.body.data.myActivity.data.map((activity: { action: string }) => activity.action)).toEqual(
                 expect.arrayContaining(['ENTRY_ADDED', 'LIST_CREATED']),
             );
-            expect(ownerHistory.body.data.myActivity.data[0].mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
+            const entryActivity = ownerHistory.body.data.myActivity.data.find(
+                (activity: { action: string }) => activity.action === 'ENTRY_ADDED',
+            );
+            expect(entryActivity?.mediaItem).toMatchObject({ id: mediaItemId, type: 'BOOK' });
             const dates = ownerHistory.body.data.myActivity.data.map((activity: { createdAt: string }) =>
                 new Date(activity.createdAt).getTime(),
             );

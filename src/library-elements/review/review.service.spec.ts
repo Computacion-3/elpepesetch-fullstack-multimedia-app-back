@@ -39,23 +39,25 @@ describe('ReviewService', () => {
             findOne: vi.fn(async () => (options.eligible ? new LibraryEntry() : null)),
         };
         const activity = { logActivity: vi.fn(async () => undefined) };
+        const events = { emitAsync: vi.fn(async () => []) };
         const service = new ReviewService(
             repository as never,
             mediaRepository as never,
             libraryRepository as never,
             activity as never,
+            events as never,
         );
-        return { service, repository, mediaRepository, libraryRepository, activity, reviews };
+        return { service, repository, mediaRepository, libraryRepository, activity, events, reviews };
     }
 
     it('requires an eligible library entry and creates only one review per media item', async () => {
         const missingEntry = makeService();
         await expect(
-            missingEntry.service.create(7, mediaItemId, { content: 'Una reseña que supera diez caracteres.' }),
+            missingEntry.service.create({ id: 7, username: 'pepe' }, mediaItemId, { content: 'Una reseña que supera diez caracteres.' }),
         ).rejects.toBeInstanceOf(BadRequestException);
 
-        const { service, activity, reviews } = makeService({ eligible: true });
-        const created = await service.create(7, mediaItemId, {
+        const { service, activity, events, reviews } = makeService({ eligible: true });
+        const created = await service.create({ id: 7, username: 'pepe' }, mediaItemId, {
             title: 'Buena',
             content: 'Una reseña que supera diez caracteres.',
         });
@@ -63,8 +65,14 @@ describe('ReviewService', () => {
         expect(created.mediaItem).toEqual({ id: mediaItemId });
         expect(reviews).toHaveLength(1);
         expect(activity.logActivity).toHaveBeenCalledWith(7, expect.objectContaining({ mediaItemId }));
+        expect(events.emitAsync).toHaveBeenCalledWith('review.created', {
+            mediaItemId,
+            reviewId,
+            title: 'Buena',
+            username: 'pepe',
+        });
         await expect(
-            service.create(7, mediaItemId, { content: 'Otra reseña que también supera diez caracteres.' }),
+            service.create({ id: 7, username: 'pepe' }, mediaItemId, { content: 'Otra reseña que también supera diez caracteres.' }),
         ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -104,7 +112,7 @@ describe('ReviewService', () => {
 
     it('only accepts the statuses eligible for review creation in the library lookup', async () => {
         const { service, libraryRepository } = makeService({ eligible: true });
-        await service.create(7, mediaItemId, { content: 'Una reseña que supera diez caracteres.' });
+        await service.create({ id: 7, username: 'pepe' }, mediaItemId, { content: 'Una reseña que supera diez caracteres.' });
         const criteria = (libraryRepository.findOne as any).mock.calls[0][0];
         expect(criteria.where.status._type).toBe('in');
         expect(criteria.where.status._value).toEqual(['IN_PROGRESS', 'COMPLETED', 'DROPPED']);

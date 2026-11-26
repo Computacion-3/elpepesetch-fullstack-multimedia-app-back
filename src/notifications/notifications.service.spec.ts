@@ -17,6 +17,7 @@ describe('NotificationsService', () => {
 
     beforeEach(() => vi.clearAllMocks());
 
+    // Comprueba que el servicio limita las notificaciones al usuario de la sesión.
     it('returns the authenticated user’s page and applies isRead filtering', async () => {
         repository.findAndCount.mockResolvedValue([[rows[1]], 1]);
         await expect(service.findAll(7, { isRead: true, page: 2, limit: 5 })).resolves.toMatchObject({

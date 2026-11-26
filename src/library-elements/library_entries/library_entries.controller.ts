@@ -95,7 +95,8 @@ export class LibraryEntriesController {
     @ApiParam({ name: 'id', format: 'uuid' })
     @ApiResponse({ status: 200, description: 'Entrada encontrada' })
     @ApiResponse({ status: 401, description: 'No autenticado' })
-    @ApiResponse({ status: 404, description: 'Entrada inexistente o no pertenece al usuario' })
+    @ApiResponse({ status: 403, description: 'La entrada pertenece a otro usuario' })
+    @ApiResponse({ status: 404, description: 'Entrada inexistente' })
     findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
         return this.libraryEntriesService.findOne(user.id, id);
     }
@@ -107,7 +108,8 @@ export class LibraryEntriesController {
     @ApiResponse({ status: 200, description: 'Entrada actualizada' })
     @ApiResponse({ status: 400, description: 'Datos o regla de negocio inválida' })
     @ApiResponse({ status: 401, description: 'No autenticado' })
-    @ApiResponse({ status: 404, description: 'Entrada inexistente o no pertenece al usuario' })
+    @ApiResponse({ status: 403, description: 'La entrada pertenece a otro usuario' })
+    @ApiResponse({ status: 404, description: 'Entrada inexistente' })
     update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateLibraryEntryDto) {
         return this.libraryEntriesService.update(user.id, id, dto);
     }
@@ -118,7 +120,8 @@ export class LibraryEntriesController {
     @ApiParam({ name: 'id', format: 'uuid' })
     @ApiResponse({ status: 204, description: 'Entrada eliminada' })
     @ApiResponse({ status: 401, description: 'No autenticado' })
-    @ApiResponse({ status: 404, description: 'Entrada inexistente o no pertenece al usuario' })
+    @ApiResponse({ status: 403, description: 'La entrada pertenece a otro usuario' })
+    @ApiResponse({ status: 404, description: 'Entrada inexistente' })
     remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
         return this.libraryEntriesService.remove(user.id, id);
     }

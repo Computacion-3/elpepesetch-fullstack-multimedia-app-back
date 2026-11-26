@@ -1,3 +1,5 @@
+import { NotFoundException } from '@nestjs/common';
+import { WsException } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { RealtimeGateway } from './realtime.gateway.js';
 
@@ -7,9 +9,19 @@ describe('RealtimeGateway', () => {
         to: vi.fn((_room: string) => ({ emit: vi.fn() })),
         in: vi.fn((_room: string) => ({ disconnectSockets: vi.fn(), socketsJoin: vi.fn(), socketsLeave: vi.fn() })),
     };
-    const gateway = new RealtimeGateway({} as any);
+    const mediaItemId = '11111111-1111-4111-8111-111111111111';
+    const mediaItems = { findOne: vi.fn() };
+    const gateway = new RealtimeGateway({} as any, mediaItems as any);
+    const client = () => ({
+        data: { user: { id: 7, role: 'USER', permissions: [] } },
+        join: vi.fn(async () => undefined),
+        leave: vi.fn(async () => undefined),
+    }) as unknown as Socket;
 
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mediaItems.findOne.mockResolvedValue({ id: mediaItemId });
+    });
 
     it('delivers internal events only to the server-selected room', () => {
         gateway.afterInit(server as unknown as Server);
@@ -32,6 +44,27 @@ describe('RealtimeGateway', () => {
         expect(server.in.mock.results[0].value.socketsLeave).toHaveBeenCalledWith('moderators');
         gateway.updateRoleRooms({ userId: 5, role: 'MODERATOR' });
         expect(server.in.mock.results[1].value.socketsJoin).toHaveBeenCalledWith('moderators');
+    });
+
+    it('joins a media room only after catalog visibility is confirmed', async () => {
+        const socket = client();
+        await gateway.subscribeToMedia(socket, { mediaItemId });
+        expect(mediaItems.findOne).toHaveBeenCalledWith(socket.data.user, mediaItemId);
+        expect(socket.join).toHaveBeenCalledWith('media:' + mediaItemId);
+    });
+
+    it('rejects hidden media and does not let clients request arbitrary rooms', async () => {
+        const socket = client();
+        mediaItems.findOne.mockRejectedValueOnce(new NotFoundException());
+        await expect(gateway.subscribeToMedia(socket, { mediaItemId })).rejects.toBeInstanceOf(WsException);
+        await expect(gateway.subscribeToMedia(socket, { room: 'moderators' } as any)).rejects.toBeInstanceOf(WsException);
+        expect(socket.join).not.toHaveBeenCalled();
+    });
+
+    it('lets a client leave only the server-built media room', async () => {
+        const socket = client();
+        await gateway.unsubscribeFromMedia(socket, { mediaItemId });
+        expect(socket.leave).toHaveBeenCalledWith('media:' + mediaItemId);
     });
 
     it('disconnects only sockets attached to the revoked session jti', () => {

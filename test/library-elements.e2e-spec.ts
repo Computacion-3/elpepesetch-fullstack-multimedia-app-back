@@ -155,14 +155,14 @@ describe('Library, Lists and Activity security (e2e)', () => {
                 .set(auth(userAToken))
                 .expect(403));
 
-        it('hides another user library entry with 404', async () => {
-            await request(app.getHttpServer()).get(`/library/${libraryEntryId}`).set(auth(userBToken)).expect(404);
+        it('blocks another user from reading, updating, or removing a library entry', async () => {
+            await request(app.getHttpServer()).get(`/library/${libraryEntryId}`).set(auth(userBToken)).expect(403);
             await request(app.getHttpServer())
                 .patch(`/library/${libraryEntryId}`)
                 .set(auth(userBToken))
                 .send({ isFavorite: true })
-                .expect(404);
-            await request(app.getHttpServer()).delete(`/library/${libraryEntryId}`).set(auth(userBToken)).expect(404);
+                .expect(403);
+            await request(app.getHttpServer()).delete(`/library/${libraryEntryId}`).set(auth(userBToken)).expect(403);
         });
     });
 

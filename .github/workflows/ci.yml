@@ -2,9 +2,8 @@ name: CI NestJS Tests
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "master" ]
 
 # Un push nuevo a un PR cancela la ejecución anterior; en master se completan todas (el CD depende de ellas).
 concurrency:

@@ -12,7 +12,7 @@ Después de persistir `logActivity()`, el servicio emite `activity.created` con 
 
 La conexión Socket.IO sigue usando tickets de un solo uso obtenidos con `POST /auth/socket-token`; cada conexión y reconexión requiere uno nuevo.
 
-Para Activity Logs se añadieron pruebas unitarias del servicio, resolver y listener, además de una prueba E2E en la suite de tickets Socket.IO que cubre consulta, paginación, orden, aislamiento y eventos de Library y Lists. En esta revisión, `tsc -p tsconfig.build.json --noEmit`, `oxlint src/ test/` y `git diff --check` finalizaron correctamente. Vitest y `nest build` no pudieron ejecutarse con el Node 20 disponible porque dependencias ESM fallan al cargarse desde CommonJS. Las E2E tampoco se ejecutaron, por lo que sus resultados siguen pendientes y requieren una base aislada con `POSTGRES_DB` que contenga `test`.
+Las pruebas unitarias del servicio, resolver y listener de Activity Logs cubren su consulta, paginación, aislamiento y emisión de eventos. La verificación completa de esta rama se detalla en “Verificación de la ampliación”.
 
 ### GraphQL de la biblioteca
 
@@ -30,13 +30,65 @@ El gateway Socket.IO escucha en `/socket.io`. El frontend solicita un ticket de 
 
 Los servicios emiten eventos internos después de persistir. `RealtimeGateway` distribuye los eventos. `ModerationQueueListener` calcula los contadores desde las entidades `MediaItem` y `ReviewReport`. `NotificationEventsListener` persiste los avisos de moderación, ocultamiento y cambio de rol antes de distribuirlos. `GET /notifications` filtra por usuario y permite `isRead`, página y límite; `PATCH /notifications/:id/read` solo actualiza avisos propios. El `eventId` único hace idempotente el guardado de un mismo evento.
 
-Los payloads disponibles son `media.moderated`, `moderation.queue.changed`, `review.visibility.changed`, `account.updated` y `account.deactivated`; se describen con ejemplos de cliente en el README. HTTP y Socket.IO usan `CORS_ORIGIN` como lista separada por coma.
+Los eventos incluyen `media.moderated`, `moderation.queue.changed`, `review.visibility.changed`, `account.updated`, `account.deactivated`, `activity.created`, los cambios de listas y los extras `media.rating.updated` y `review.created`. Para estos dos últimos, `media.subscribe` comprueba la visibilidad con `MediaItemService` antes de unir el socket a `media:{id}`; `media.unsubscribe` lo retira. El servidor valida el UUID y construye el nombre de sala, por lo que no admite unirse a salas arbitrarias. HTTP y Socket.IO usan `CORS_ORIGIN` como lista separada por coma.
 
 `UserListsService` publica un evento interno `user-list.changed` después de completar la persistencia y, al crear una lista, después de registrar su actividad. `UserListEventsListener` lo convierte al canal `realtime.direct` existente, que `RealtimeGateway` distribuye únicamente a `user:{ownerId}`. Los eventos de salida son `list.created`, `list.updated`, `list.deleted`, `list.item.added` y `list.item.removed`. El servicio no depende del gateway; REST y GraphQL usan las mismas operaciones y producen un solo evento por cambio exitoso. Un update sin cambios no emite evento.
 
 ### Verificación de la ampliación
 
-La verificación previa de Library, Auth, notificaciones y Realtime pasó con Node 24, con build y lint correctos, 206 pruebas unitarias en 29 suites y 80 pruebas e2e en cinco suites sobre la base aislada `mydatabase_test`. Para User Lists se añadieron pruebas unitarias del resolver, del listener y del orden/ausencia de eventos, una suite e2e GraphQL con paridad REST y un caso e2e Socket.IO para los cinco eventos y aislamiento de salas. En esta sesión, `oxlint src/ test/` y `tsc -p tsconfig.build.json --noEmit` finalizaron correctamente. Las pruebas Vitest y `nest build` no pudieron completarse con el Node 20 de Visual Studio, que falla al cargar dependencias ESM del proyecto; Node 24 no está disponible en el PATH de esta sesión. Las pruebas nuevas y las E2E quedan pendientes. Las E2E truncan tablas y deben apuntar exclusivamente a una base de pruebas.
+La verificación de esta rama se ejecutó con Node 22.23.2: `npm run lint` y `npm run build` finalizaron correctamente; `npm run test` pasó 229 pruebas en 35 archivos; `npm run test:e2e` pasó 86 pruebas en seis suites contra PostgreSQL desechable (`POSTGRES_DB=mydatabase_test`). `npm run seed` se ejecutó dos veces y mantuvo 10 géneros, 3 roles, 3 usuarios, cinco elementos aprobados por tipo y tres listas (dos públicas y una privada). Las E2E cubren autenticación, autorización, GraphQL, handshake y revocación del socket, usuario inactivo, notificaciones, aislamiento de salas y actualizaciones de rating y reseña en `media:{id}`.
+
+## Contratos de GraphQL y tiempo real
+
+GraphQL recibe operaciones en `POST /graphql`. Registro e inicio de sesión son públicos; las demás operaciones requieren el JWT de sesión en `Authorization: Bearer <token>`. Las respuestas exitosas contienen `data`; los errores exponen `extensions.code` y `extensions.status` con los códigos HTTP equivalentes.
+
+### Operaciones GraphQL
+
+| Operación | Parámetros | Respuesta |
+|---|---|---|
+| `me` (query) | Ninguno | `User`: perfil, rol y permisos visibles; nunca incluye la contraseña |
+| `register(input)` (mutation) | `username`, `email`, `password`, `fullName?`, `bio?` | `User` con el rol `USER` |
+| `login(input)` (mutation) | `email`, `password` | `LoginResult`: `accessToken`, `tokenType`, usuario resumido |
+| `logout` (mutation) | Ninguno | `Boolean`; revoca la sesión actual |
+| `socketToken` (mutation) | Ninguno | `SocketToken`: ticket de un solo uso y `expiresIn` en segundos |
+| `myLibrary(filter?)` (query) | `status`, `isFavorite`, `q`, `type`, `genreId`, `year`, `sortBy`, `order`, `page`, `limit` | Página `{ data, meta: { total, page, limit, totalPages } }` con elemento multimedia y géneros |
+| `libraryEntry(id)` (query) | ID UUID de la entrada | `LibraryEntry` propia con elemento y géneros; recurso ajeno responde 403 y uno inexistente 404 |
+| `addToLibrary(input)` (mutation) | `mediaItemId`, `status?`, `progress?`, `rating?`, `isFavorite?`, `notes?` | `LibraryEntry` creada |
+| `updateLibraryEntry(id, input)` (mutation) | ID UUID y campos editables de la entrada | `LibraryEntry` actualizada |
+| `removeLibraryEntry(id)` (mutation) | ID UUID de la entrada | `Boolean`; recalcula las calificaciones del catálogo |
+| `myLists` (query) | Ninguno | Listas propias como arreglo de `UserList` |
+| `publicLists(filter?)` (query) | `page?`, `limit?` | Página de listas públicas con propietario y elementos |
+| `userList(id)` (query) | ID UUID de la lista | `UserList` visible para el usuario |
+| `createUserList(input)` (mutation) | `name`, `description?`, `visibility?` | `UserList` creada |
+| `updateUserList(id, input)` (mutation) | ID UUID y `name?`, `description?`, `visibility?` | `UserList` actualizada |
+| `deleteUserList(id)` (mutation) | ID UUID de la lista | `Boolean` |
+| `addItemToList(listId, input)` (mutation) | ID UUID de lista y `mediaItemId` | `UserList` con el elemento agregado |
+| `removeItemFromList(listId, mediaItemId)` (mutation) | Dos IDs UUID | `Boolean` |
+| `myActivity(page, limit)` (query) | `page?` (mínimo 1), `limit?` (1 a 50) | Página `{ data, meta }` en orden descendente |
+
+Los inputs GraphQL reutilizan las restricciones de `class-validator` de los DTO REST. Los errores de dominio se traducen así: `BAD_REQUEST`/400, `UNAUTHENTICATED`/401, `FORBIDDEN`/403, `NOT_FOUND`/404 y `CONFLICT`/409. En producción se deshabilita el playground y la introspección; la profundidad máxima es 10.
+
+### Eventos WebSocket
+
+El cliente envía el ticket JWT solo en `auth.token` durante el handshake. El servidor asigna las salas: cada usuario entra en `user:{id}`; moderadores y administradores también entran en `moderators`. Para RF-WS-12 se admiten `media.subscribe` y `media.unsubscribe` con `mediaItemId`; el gateway valida UUID y visibilidad, y calcula `media:{id}` en el servidor. No se aceptan nombres de sala arbitrarios.
+
+| Evento | Se emite a | Payload |
+|---|---|---|
+| `media.moderated` | `user:{creatorId}` | `mediaItemId`, `title`, `approvalStatus`, `rejectionReason?` |
+| `moderation.queue.changed` | `moderators` | `kind` (`MEDIA` o `REPORT`), `pendingMedia`, `openReports` |
+| `review.visibility.changed` | `user:{authorId}` | `reviewId`, `mediaItemId`, `isHidden`, `hiddenReason` |
+| `account.updated` | `user:{id}` | `role` vigente |
+| `account.deactivated` | `user:{id}` | Objeto vacío; luego se cierran sus sockets |
+| `activity.created` | `user:{id}` | `activityId`, `action`, `mediaItemId?`, `createdAt` ISO-8601 |
+| `media.rating.updated` (extra) | `media:{mediaItemId}` | `mediaItemId`, `averageRating`, `ratingsCount` |
+| `review.created` (extra) | `media:{mediaItemId}` | `reviewId`, `title`, `username` |
+| `list.created` | `user:{ownerId}` | `listId`, `name`, `visibility`, `createdAt` |
+| `list.updated` | `user:{ownerId}` | `listId`, `name`, `description`, `visibility`, `updatedAt` |
+| `list.deleted` | `user:{ownerId}` | `listId` |
+| `list.item.added` | `user:{ownerId}` | `listId`, `mediaItemId`, `addedAt` |
+| `list.item.removed` | `user:{ownerId}` | `listId`, `mediaItemId` |
+
+Los servicios de dominio emiten eventos internos después de guardar en PostgreSQL. `LibraryEntriesService` publica el promedio y número de ratings cuando una calificación se agrega, cambia o elimina. `ReviewService` publica la reseña después de guardarla. `MediaLiveEventsListener` convierte ambos contratos a entregas dirigidas a `media:{mediaItemId}`. El gateway solo los entrega a la sala correspondiente. Las notificaciones de moderación, ocultamiento y cambio de rol también se guardan y se consultan mediante `GET /notifications?page=1&limit=10&isRead=false`; `PATCH /notifications/:id/read` marca una notificación propia como leída.
 
 ## Capa de Seguridad y usuarios
 
@@ -240,7 +292,7 @@ Los datos de seguridad viven en PostgreSQL y se manejan con TypeORM a través de
 
 ### Pruebas
 
-La seguridad se prueba en dos niveles: las pruebas unitarias con Vitest aíslan la lógica de servicios, estrategia y guards con repositorios simulados, y 51 pruebas E2E con Supertest levantan la aplicación completa contra PostgreSQL y recorren las rutas reales. Todos los servicios, la estrategia `JWT` y los guards del área tienen pruebas unitarias; los controladores se cubren con las E2E.
+La seguridad se prueba en dos niveles: las pruebas unitarias con Vitest aíslan la lógica de servicios, estrategia y guards con repositorios simulados, y las pruebas E2E con Supertest levantan la aplicación completa contra PostgreSQL y recorren las rutas reales. Todos los servicios, la estrategia `JWT` y los guards del área tienen pruebas unitarias; los controladores se cubren con las E2E.
 
 | Archivo | Tipo | Casos | Qué verifica |
 | --- | --- | --- | --- |
@@ -373,9 +425,9 @@ Los cambios de Library registran las acciones `ENTRY_ADDED`, `STATUS_CHANGED`, `
 | `POST` | `/library` | Agregar un elemento | `CreateLibraryEntryDto` | `201`, `400`, `401`, `409` |
 | `GET` | `/library` | Consultar la biblioteca propia | `LibraryQueryDto` | `200`, `400`, `401` |
 | `GET` | `/library/user/:userId` | Consultar la biblioteca de otro usuario (administrador) | `LibraryQueryDto`, `userId` positivo | `200`, `400`, `401`, `403` |
-| `GET` | `/library/:id` | Consultar una entrada propia | UUID | `200`, `401`, `404` |
-| `PATCH` | `/library/:id` | Actualizar una entrada propia | UUID y `UpdateLibraryEntryDto` | `200`, `400`, `401`, `404` |
-| `DELETE` | `/library/:id` | Eliminar una entrada propia | UUID | `204`, `401`, `404` |
+| `GET` | `/library/:id` | Consultar una entrada propia | UUID | `200`, `401`, `403`, `404` |
+| `PATCH` | `/library/:id` | Actualizar una entrada propia | UUID y `UpdateLibraryEntryDto` | `200`, `400`, `401`, `403`, `404` |
+| `DELETE` | `/library/:id` | Eliminar una entrada propia | UUID | `204`, `401`, `403`, `404` |
 
 `GET /library` acepta `status`, `isFavorite`, `q`, `type`, `genreId`, `year`, `sortBy`, `order`, `page` y `limit`. `sortBy` permite `title`, `releaseYear`, `averageRating` y `addedAt`; `order` acepta `ASC` o `DESC`; `page` comienza en `1` y `limit` admite valores entre `1` y `50`.
 
@@ -504,10 +556,10 @@ La suite E2E específica está en [library-elements.e2e-spec.ts](../test/library
 Resultados comprobados:
 
 ```text
-npm test        -> 19 archivos y 95 tests aprobados
-npm run test:e2e -> requiere una base PostgreSQL cuyo nombre contenga "test"; sin ella, los 51 casos se omiten y la suite falla de forma segura antes de conectarse
-npm run build   -> compilación exitosa
-npm run lint    -> lint exitoso
+npm run test       -> 34 archivos y 222 pruebas aprobadas
+npm run test:e2e    -> 85 pruebas aprobadas en seis suites con PostgreSQL desechable
+npm run build       -> compilación exitosa
+npm run lint        -> lint exitoso
 ```
 
 Además, las validaciones booleanas de `GET /library` rechazan valores distintos de
@@ -598,12 +650,12 @@ El archivo [db/seed.sql](../db/seed.sql) carga un escenario completo para desarr
 1. Crea o actualiza los tres roles (`USER`, `MODERATOR`, `ADMIN`) y los 25 permisos.
 2. Asigna permisos a cada rol mediante `role_permissions`.
 3. Crea o actualiza tres usuarios de prueba, asociados a sus roles.
-4. Inserta 10 géneros y 15 elementos multimedia: cinco juegos, cinco películas y cinco libros, con estados aprobados, pendientes y rechazados.
+4. Inserta 10 géneros y 21 elementos multimedia: siete por tipo, con cinco aprobados por tipo y propuestas pendientes o rechazadas para probar moderación.
 5. Relaciona el catálogo con géneros en `media_item_genres`.
 6. Agrega entradas de biblioteca, listas personalizadas y sus elementos.
 7. Inserta reseñas, un reporte y registros de actividad para probar moderación, ownership, filtros y estadísticas.
 
-La carga está envuelta en `BEGIN` y `COMMIT`. Si una instrucción falla, `psql` se ejecuta con `ON_ERROR_STOP=1` y la transacción no se confirma, evitando dejar una carga parcial. La mayoría de los bloques usa `ON CONFLICT` para actualizar datos existentes o ignorar relaciones ya creadas, por lo que el seed puede ejecutarse más de una vez.
+La carga está envuelta en `BEGIN` y `COMMIT`. `npm run seed` ejecuta el archivo con el cliente PostgreSQL; si una instrucción falla, la conexión se cierra y PostgreSQL revierte la transacción. Los bloques usan `ON CONFLICT` para que las siguientes ejecuciones actualicen los registros sin duplicarlos.
 
 Las credenciales creadas son exclusivamente de desarrollo:
 
@@ -615,23 +667,17 @@ Las credenciales creadas son exclusivamente de desarrollo:
 
 No deben utilizarse estas contraseñas en un entorno compartido o de producción.
 
-### Inserción del seed con PowerShell
+### Ejecutar `npm run seed`
 
-El script [scripts/seed-db.ps1](../scripts/seed-db.ps1) encapsula la ejecución de `psql` y evita tener que escribir manualmente la contraseña en la línea de comandos. Lee `DB_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB` desde `.env`, localiza automáticamente `db/seed.sql`, configura temporalmente `PGPASSWORD` y restaura su valor anterior al terminar.
+El comando funciona en Windows, Linux y macOS. Lee la conexión PostgreSQL desde `.env` y carga `db/seed.sql` con el cliente `pg`; no requiere instalar `psql`.
 
-Con PostgreSQL activo y las tablas creadas por la aplicación, ejecutar desde la raíz del repositorio:
+Con PostgreSQL activo y después de que TypeORM haya creado las tablas, ejecutar desde la raíz del repositorio:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\seed-db.ps1
+```bash
+npm run seed
 ```
 
-También puede ejecutarse desde PowerShell con:
-
-```powershell
-.\scripts\seed-db.ps1
-```
-
-El script requiere que `psql` esté instalado y disponible en el `PATH`. Si no se reconoce el comando, se debe agregar la carpeta `bin` de PostgreSQL al `PATH` o abrir una terminal que ya incluya esa ruta. El archivo `.env` local de referencia usa `localhost`, puerto `5433`, usuario `postgres` y base `mydatabase`; estos valores no se fijan en el script y pueden cambiarse mediante el archivo de configuración.
+El script PowerShell [scripts/seed-db.ps1](../scripts/seed-db.ps1) se conserva como alternativa para Windows y requiere `psql` en el `PATH`.
 
 Una ejecución correcta termina con:
 
@@ -677,11 +723,11 @@ Los E2E requieren PostgreSQL activo y variables de entorno configuradas. No debe
 
 ### GitHub Actions
 
-Cada `push` y cada pull request hacia `master` ejecuta lint, pruebas unitarias y pruebas E2E. Solo si todo pasa en un `push` a `master`, un segundo workflow despliega en Render.
+Cada `push` a `main` o `master` y cada pull request ejecuta lint, pruebas unitarias y pruebas E2E. Solo si todo pasa en un `push` a `master`, un segundo workflow despliega en Render.
 
 #### CI — `.github/workflows/ci.yml`
 
-Se dispara con `push` y `pull_request` sobre `master` y corre en `ubuntu-latest`:
+Se dispara con `push` a `main` o `master` y con cada `pull_request`; corre en `ubuntu-latest`:
 
 - Levanta un contenedor de servicio `postgres:17-alpine` con base `mydatabase_test`, y espera a que `pg_isready` responda antes de continuar.
 
@@ -768,11 +814,6 @@ Las estadísticas personales se calculan a partir de las entradas de la bibliote
 - **API:** https://elpepesetch-fullstack-multimedia-app-back.onrender.com (Swagger en `/api/docs`). Corre como *Web Service* de Render construido con el `Dockerfile` del proyecto.
 - **Base de datos:** PostgreSQL administrado por Render, en la misma región que la API y conectado por la red interna (`DB_SSL=false`). TypeORM crea las tablas al primer arranque (`synchronize: true`).
 - **Datos iniciales:** la base desplegada ya tiene cargado `db/seed.sql`, así que se puede iniciar sesión de inmediato con `admin@example.com / Admin1234`, `moderator@example.com / Moderator1234` o `user@example.com / User12345`.
-- **Seed en local:** en Windows con `scripts/seed-db.ps1`; en Linux y macOS, ejecutando `psql` dentro del contenedor de `docker compose`:
-
-```bash
-docker compose up -d db
-docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/seed.sql
-```
+- **Seed en local:** configurar la conexión en `.env` y ejecutar `npm run seed` en cualquier sistema operativo.
 
 - **Entrega continua:** cada push a `master` con las pruebas en verde dispara `cd.yml`, que llama al Deploy Hook de Render (ver la sección de GitHub Actions).

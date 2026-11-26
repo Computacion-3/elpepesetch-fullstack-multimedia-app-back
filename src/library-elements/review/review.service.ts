@@ -6,6 +6,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { In, Repository } from 'typeorm';
 import { isUniqueViolation } from '../../common/database/pg-errors.js';
 import { LibraryEntry } from '../entities/library_entry.entity.js';
@@ -15,6 +16,8 @@ import { ActivityLogsService } from '../activity_logs/activity_logs.service.js';
 import { ActivityAction, LibraryStatus } from '../enums/library.enums.js';
 import { CreateReviewDto } from './dto/create-review.dto.js';
 import { UpdateReviewDto } from './dto/update-review.dto.js';
+import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface.js';
+import type { ReviewCreatedEvent } from '../events/review-created.event.js';
 
 const ELIGIBLE_LIBRARY_STATUSES = [LibraryStatus.IN_PROGRESS, LibraryStatus.COMPLETED, LibraryStatus.DROPPED];
 
@@ -25,9 +28,11 @@ export class ReviewService {
         @InjectRepository(MediaItem) private readonly mediaRepository: Repository<MediaItem>,
         @InjectRepository(LibraryEntry) private readonly libraryRepository: Repository<LibraryEntry>,
         private readonly activityLogsService: ActivityLogsService,
+        private readonly events: EventEmitter2,
     ) {}
 
-    async create(userId: number, mediaItemId: string, dto: CreateReviewDto): Promise<Review> {
+    async create(user: Pick<AuthenticatedUser, 'id' | 'username'>, mediaItemId: string, dto: CreateReviewDto): Promise<Review> {
+        const userId = user.id;
         const mediaItem = await this.mediaRepository.findOne({ where: { id: mediaItemId } });
         if (!mediaItem) throw new NotFoundException(`Media item ${mediaItemId} not found`);
 
@@ -66,6 +71,14 @@ export class ReviewService {
             throw error;
         }
 
+        // Avisa a los clientes en cuanto la reseña queda guardada.
+        const event: ReviewCreatedEvent = {
+            mediaItemId,
+            reviewId: review.id,
+            title: review.title,
+            username: user.username,
+        };
+        await this.events.emitAsync('review.created', event);
         await this.activityLogsService.logActivity(userId, {
             action: ActivityAction.REVIEW_CREATED,
             mediaItemId,

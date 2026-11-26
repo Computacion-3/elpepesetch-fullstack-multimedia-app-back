@@ -144,9 +144,8 @@ ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name, description = EXCLUDED.description;
 
 -- ---------------------------------------------------------------------------
--- Catálogo: cinco juegos, cinco películas y cinco libros.
--- Los tres primeros elementos de cada tipo son aprobados; el resto incluye
--- propuestas pendientes o rechazadas para probar los flujos de moderación.
+-- Catálogo: siete elementos por tipo, con cinco aprobados para la biblioteca.
+-- Los demás quedan pendientes o rechazados para probar la moderación.
 -- ---------------------------------------------------------------------------
 
 INSERT INTO media_items (
@@ -174,7 +173,13 @@ FROM (VALUES
     ('10000000-0000-4000-8000-000000000012', '1984', 'BOOK', 'Novela distópica sobre vigilancia y control social.', 1949, 'George Orwell', NULL, NULL, NULL, 328, '9780451524935', 'APPROVED', NULL, 8.9, 1, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000013', 'El nombre del viento', 'BOOK', 'Fantasía sobre la vida y las leyendas de Kvothe.', 2007, 'Patrick Rothfuss', NULL, NULL, NULL, 662, '9780756404741', 'APPROVED', NULL, 8.7, 1, 'admin@example.com'),
     ('10000000-0000-4000-8000-000000000014', 'Atlas de Mundos Perdidos', 'BOOK', 'Propuesta de novela fantástica.', 2026, 'Usuario Prueba', NULL, NULL, NULL, 280, '9780000000001', 'PENDING', NULL, 0, 0, 'user@example.com'),
-    ('10000000-0000-4000-8000-000000000015', 'Manual de los Sueños', 'BOOK', 'Propuesta de libro para moderación.', 2025, 'Moderador Prueba', NULL, NULL, NULL, 210, '9780000000002', 'PENDING', NULL, 0, 0, 'moderator@example.com')
+    ('10000000-0000-4000-8000-000000000015', 'Manual de los Sueños', 'BOOK', 'Propuesta de libro para moderación.', 2025, 'Moderador Prueba', NULL, NULL, NULL, 210, '9780000000002', 'PENDING', NULL, 0, 0, 'moderator@example.com'),
+    ('10000000-0000-4000-8000-000000000016', 'Ori and the Will of the Wisps', 'GAME', 'Aventura de plataformas en un bosque fantástico.', 2020, 'Moon Studios', NULL, 'PC', NULL, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000017', 'Sea of Stars', 'GAME', 'Aventura de rol inspirada en los clásicos.', 2023, 'Sabotage Studio', NULL, 'PC', NULL, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000018', 'Interstellar', 'MOVIE', 'Un viaje espacial en busca de un nuevo hogar.', 2014, 'Christopher Nolan', NULL, NULL, 169, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000019', 'Arrival', 'MOVIE', 'Una lingüista intenta comprender una visita extraterrestre.', 2016, 'Denis Villeneuve', NULL, NULL, 116, NULL, NULL, 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000020', 'Dune', 'BOOK', 'Una novela de ciencia ficción sobre poder y supervivencia.', 1965, 'Frank Herbert', NULL, NULL, NULL, 896, '9780441172719', 'APPROVED', NULL, 0, 0, 'admin@example.com'),
+    ('10000000-0000-4000-8000-000000000021', 'The Hobbit', 'BOOK', 'Una aventura fantástica en la Tierra Media.', 1937, 'J. R. R. Tolkien', NULL, NULL, NULL, 310, '9780547928227', 'APPROVED', NULL, 0, 0, 'admin@example.com')
 ) AS v(id, title, type, description, release_year, creator, cover_url, platform, duration_minutes, pages, isbn, approval_status, rejection_reason, average_rating, ratings_count, email)
 JOIN users u ON u.email = v.email
 ON CONFLICT (id) DO UPDATE
@@ -208,7 +213,13 @@ FROM (VALUES
     ('10000000-0000-4000-8000-000000000012', 'Drama'),
     ('10000000-0000-4000-8000-000000000013', 'Fantasía'),
     ('10000000-0000-4000-8000-000000000014', 'Fantasía'),
-    ('10000000-0000-4000-8000-000000000015', 'Misterio')
+    ('10000000-0000-4000-8000-000000000015', 'Misterio'),
+    ('10000000-0000-4000-8000-000000000016', 'Aventura'),
+    ('10000000-0000-4000-8000-000000000017', 'Fantasía'),
+    ('10000000-0000-4000-8000-000000000018', 'Ciencia ficción'),
+    ('10000000-0000-4000-8000-000000000019', 'Drama'),
+    ('10000000-0000-4000-8000-000000000020', 'Ciencia ficción'),
+    ('10000000-0000-4000-8000-000000000021', 'Fantasía')
 ) AS v(media_id, genre_name)
 JOIN media_items m ON m.id = v.media_id::uuid
 JOIN genres g ON g.name = v.genre_name
